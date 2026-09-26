@@ -763,7 +763,7 @@ function executeSwap() {
 
   if (swapMode === "buy") {
     if (inputAmount > userWallet.balanceEth) {
-      alert("Insufficient ETH balance on Robinhood Chain Testnet!");
+      alert("Insufficient ETH balance on Robinhood Chain Mainnet!");
       return;
     }
 
@@ -911,11 +911,11 @@ async function connectWallet() {
 
 function activateDemoMode() {
   userWallet.connected = true;
-  userWallet.address = "0xRH...46630";
+  userWallet.address = "0xRH...4663";
   userWallet.balanceEth = 3.50;
   renderHeader();
   renderTerminal();
-  alert("Connected to Robinhood Chain Testnet Demo Mode!\n\nTarget is 2.0 ETH per bonding curve. Test token launches with logo uploads and Uniswap v4 graduation.");
+  alert("🟢 Connected to Robinhood Chain Mainnet!\n\n• Network: Robinhood Chain (Chain ID: 4663)\n• Factory Contract: 0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2\n• Uniswap v4 Router: 0x8366a39cc670b4001a1121b8f6a443a643e40951\n• Target: 2.0 ETH per bonding curve -> Uniswap v4");
 }
 
 // --- Logo File Upload Handling ---
