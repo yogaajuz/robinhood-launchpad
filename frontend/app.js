@@ -1008,7 +1008,8 @@ async function executeSwap() {
 
       if (allowance < tokensWei) {
         if (actionBtn) actionBtn.innerText = "Approve in MetaMask...";
-        const approveTx = await tokenContract.approve(activeToken.curveAddress, ethers.MaxUint256);
+        // Exact approval for safety (avoids Web3 wallet drainer/phishing heuristics)
+        const approveTx = await tokenContract.approve(activeToken.curveAddress, tokensWei);
         await approveTx.wait();
       }
 
