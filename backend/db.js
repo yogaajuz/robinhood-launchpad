@@ -11,13 +11,16 @@ let dbType = 'sqlite';
 let pgPool = null;
 let sqliteDb = null;
 
-const dbUrl = process.env.DATABASE_URL || '';
+const rawDbUrl = process.env.DATABASE_URL || '';
 
-if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
+if (rawDbUrl.startsWith('postgres://') || rawDbUrl.startsWith('postgresql://')) {
   try {
     const { Pool } = require('pg');
 
-    // Cloud PostgreSQL (Neon / Supabase / Railway / AWS) requires SSL
+    // Strip channel_binding if present to prevent node-postgres connection handshake issues
+    const dbUrl = rawDbUrl.replace(/[?&]channel_binding=[^&]+/, '');
+
+    // Cloud PostgreSQL (Neon / Supabase / Railway / Render / AWS) requires SSL
     const isCloud = dbUrl.includes('neon.tech') || dbUrl.includes('supabase') || dbUrl.includes('railway') || dbUrl.includes('render');
 
     pgPool = new Pool({
@@ -26,7 +29,7 @@ if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
     });
 
     dbType = 'postgres';
-    console.log('📦 [Database] Connected to PostgreSQL (Cloud mode with SSL enabled).');
+    console.log('📦 [Database] Connected to Cloud PostgreSQL (Neon.tech / AWS pooler with SSL).');
   } catch (err) {
     console.warn('⚠️ [Database] PostgreSQL client failed, falling back to SQLite.', err.message);
     dbType = 'sqlite';
@@ -202,7 +205,7 @@ async function initDatabase() {
       await query(
         `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, tokens_left, market_cap_usd, volume_24h_usd, creator_tax_bps, holder_tax_bps, is_graduated)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [t.id, t.curve, t.name, t.symbol, t.desc, t.logo, t.creator, t.realEth, t.tokensLeft, t.mcap, t.vol, t.devTax, t.holderTax, t.graduated]
+        [t.id, t.curve, t.name, t.symbol, t.desc, t.logo, t.creator, t.realEth, t.tokensLeft, t.mcap, t.vol, t.devTax, t.holderTax, Boolean(t.graduated)]
       );
     }
   }
