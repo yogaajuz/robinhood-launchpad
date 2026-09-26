@@ -307,10 +307,19 @@
             <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           </div>
 
-          <div class="flex bg-[#121721] p-1 rounded-xl border border-[#242e42] text-xs">
-            <button data-filter="trending" class="px-2.5 py-1 rounded-lg bg-[#181f2c] text-[#00C805] font-semibold border border-[#00C805]/40 transition">Trending</button>
-            <button data-filter="graduation" class="px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition">Near v4</button>
-            <button data-filter="marketcap" class="px-2.5 py-1 rounded-lg text-gray-400 hover:text-white transition">Top Cap</button>
+          <div class="flex flex-wrap bg-[#121721] p-1 rounded-xl border border-[#242e42] text-xs gap-1">
+            <button data-filter="latest" class="px-3 py-1 rounded-lg bg-[#181f2c] text-[#00C805] font-semibold border border-[#00C805]/40 transition flex items-center gap-1.5 cursor-pointer">
+              <span>🚀</span> Latest Launch
+            </button>
+            <button data-filter="recently_traded" class="px-3 py-1 rounded-lg text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+              <span>⚡</span> Recently Traded
+            </button>
+            <button data-filter="marketcap" class="px-3 py-1 rounded-lg text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+              <span>💎</span> Market Cap
+            </button>
+            <button data-filter="graduation" class="px-3 py-1 rounded-lg text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+              <span>🎯</span> Near v4
+            </button>
           </div>
         </div>
       </div>

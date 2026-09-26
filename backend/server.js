@@ -127,12 +127,13 @@ app.post('/api/upload-logo', upload.single('logo'), (req, res) => {
 // 3. Get All Tokens (with Sorting, Search & Filter)
 app.get('/api/tokens', async (req, res) => {
   try {
-    const { sort = 'trending', search = '', limit = 50 } = req.query;
+    const { sort = 'latest', search = '', limit = 50 } = req.query;
 
-    let orderBy = 'volume_24h_usd DESC';
-    if (sort === 'graduation') orderBy = 'real_eth DESC';
+    let orderBy = 'created_at DESC';
+    if (sort === 'latest' || sort === 'newest') orderBy = 'created_at DESC';
+    if (sort === 'recently_traded' || sort === 'trending') orderBy = 'volume_24h_usd DESC, real_eth DESC';
     if (sort === 'marketcap') orderBy = 'market_cap_usd DESC';
-    if (sort === 'newest') orderBy = 'created_at DESC';
+    if (sort === 'graduation') orderBy = 'real_eth DESC';
 
     let sql = 'SELECT * FROM tokens';
     let params = [];
