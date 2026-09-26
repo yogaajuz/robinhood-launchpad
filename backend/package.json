@@ -23,6 +23,7 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.12.0",
+    "robinhood-chain-launchpad": "file:..",
     "sqlite3": "^5.1.7",
     "viem": "^2.17.0",
     "ws": "^8.18.0"
