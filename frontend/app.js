@@ -23,6 +23,10 @@ const RH_TESTNET_CONFIG = {
 // Default to Robinhood Chain Mainnet (4663)
 let RH_CHAIN_CONFIG = RH_MAINNET_CONFIG;
 
+// Deployed Smart Contracts on Robinhood Chain Mainnet
+const FACTORY_CONTRACT_ADDRESS = '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
+const UNISWAP_V4_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951';
+
 const AMM_PARAMS = {
   TOTAL_SUPPLY: 1_000_000_000,
   TOKENS_FOR_CURVE: 800_000_000,

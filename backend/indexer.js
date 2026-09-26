@@ -7,8 +7,8 @@ const { createPublicClient, http, parseAbiItem } = require('viem');
 const { query } = require('./db.js');
 require('dotenv').config();
 
-const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://rpc.testnet.chain.robinhood.com';
-const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
+const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
 
 const client = createPublicClient({
   transport: http(RPC_URL)
