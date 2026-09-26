@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------
+  # PostgreSQL Database Service (Persistent Cloud / VPS Storage)
+  # -------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: robinhood_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: launchpad_user
+      POSTGRES_PASSWORD: launchpad_secure_password_2026
+      POSTGRES_DB: robinhood_launchpad
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U launchpad_user -d robinhood_launchpad"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # Full-Stack Launchpad App (Frontend + Backend + Indexer + WS)
+  # -------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: robinhood_launchpad_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://launchpad_user:launchpad_secure_password_2026@db:5432/robinhood_launchpad
+      ROBINHOOD_RPC_URL: https://rpc.testnet.chain.robinhood.com
+      CHAIN_ID: 46630
+    ports:
+      - "3001:3001"
+    volumes:
+      - uploads_data:/app/backend/uploads
+
+volumes:
+  pgdata:
+    driver: local
+  uploads_data:
+    driver: local

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+
+# Databases & local logs
+*.db
+*.sqlite
+*.sqlite3
+backend/launchpad.db
+backend/launchpad.db-journal
+*.log
+
+# Uploaded media (keep sample logos, ignore user uploads)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Foundry & smart contract build artifacts
+out/
+cache/
+broadcast/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

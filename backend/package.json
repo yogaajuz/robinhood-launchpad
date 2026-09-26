@@ -1,0 +1,30 @@
+{
+  "name": "robinhood-launchpad-backend",
+  "version": "1.0.0",
+  "description": "Backend Indexer, Database & WebSocket API for Robinhood Chain Launchpad",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "indexer": "node indexer.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "robinhood-chain",
+    "arbitrum-orbit",
+    "bonding-curve",
+    "uniswap-v4",
+    "indexer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.12.0",
+    "sqlite3": "^5.1.7",
+    "viem": "^2.17.0",
+    "ws": "^8.18.0"
+  }
+}
