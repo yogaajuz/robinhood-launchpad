@@ -13,7 +13,8 @@ const { WebSocketServer, WebSocket } = require('ws');
 
 const { initDatabase, query } = require('./db.js');
 const { startIndexer } = require('./indexer.js');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const server = http.createServer(app);
@@ -243,16 +244,20 @@ app.get('*', (req, res) => {
   }
 });
 
-// --- Start Server ---
-async function start() {
-  await initDatabase();
-  startIndexer(broadcast);
+// --- Start Server Immediately for Passenger / LiteSpeed / Cloud ---
+server.listen(PORT, () => {
+  console.log(`🚀 [Server] Robinhood Launchpad running on port ${PORT}`);
+  console.log(`📡 [API] REST Endpoints live at /api/tokens`);
+  console.log(`⚡ [WebSocket] Real-time stream active`);
+});
 
-  server.listen(PORT, () => {
-    console.log(`🚀 [Server] Robinhood Launchpad running on port ${PORT}`);
-    console.log(`📡 [API] REST Endpoints live at /api/tokens`);
-    console.log(`⚡ [WebSocket] Real-time stream active`);
-  });
-}
+// Run database initialization and indexer asynchronously in the background
+(async () => {
+  try {
+    await initDatabase();
+    startIndexer(broadcast);
+  } catch (err) {
+    console.error('⚠️ [Startup Warning]:', err.message);
+  }
+})();
 
-start();

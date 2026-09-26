@@ -5,13 +5,15 @@
 
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 let dbType = 'sqlite';
 let pgPool = null;
 let sqliteDb = null;
 
-const rawDbUrl = process.env.DATABASE_URL || '';
+const DEFAULT_NEON_DB = 'postgresql://neondb_owner:npg_shGaXT7mS4Yu@ep-weathered-thunder-b4e7ojiz-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const rawDbUrl = process.env.DATABASE_URL || DEFAULT_NEON_DB;
 
 if (rawDbUrl.startsWith('postgres://') || rawDbUrl.startsWith('postgresql://')) {
   try {
@@ -37,10 +39,14 @@ if (rawDbUrl.startsWith('postgres://') || rawDbUrl.startsWith('postgresql://')) 
 }
 
 if (dbType === 'sqlite') {
-  const sqlite3 = require('sqlite3').verbose();
-  const dbPath = path.join(__dirname, 'launchpad.db');
-  sqliteDb = new sqlite3.Database(dbPath);
-  console.log(`📦 [Database] Using local SQLite database at: ${dbPath}`);
+  try {
+    const sqlite3 = require('sqlite3').verbose();
+    const dbPath = path.join(__dirname, 'launchpad.db');
+    sqliteDb = new sqlite3.Database(dbPath);
+    console.log(`📦 [Database] Using local SQLite database at: ${dbPath}`);
+  } catch (e) {
+    console.warn('⚠️ [Database] SQLite module not loaded:', e.message);
+  }
 }
 
 /**
