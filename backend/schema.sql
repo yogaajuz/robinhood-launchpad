@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS tokens (
     logo_url TEXT,                               -- Uploaded logo URL (S3 / R2 / IPFS / local)
     creator VARCHAR(42) NOT NULL,                -- Creator wallet address
     real_eth NUMERIC(38, 18) DEFAULT 0,          -- Real ETH raised (towards 2.0 ETH target)
-    tokens_left NUMERIC(38, 0) DEFAULT 800000000000000000000000000, -- Remaining in curve (800M * 1e18)
+    tokens_left NUMERIC(38, 0) DEFAULT 800000000,               -- Remaining in curve (800M tokens)
     market_cap_usd NUMERIC(18, 2) DEFAULT 0,
     volume_24h_usd NUMERIC(18, 2) DEFAULT 0,
     creator_tax_bps INTEGER DEFAULT 0,           -- Basis points (e.g. 200 = 2.0%)

@@ -7,7 +7,7 @@ const { createPublicClient, http, parseAbiItem } = require('viem');
 const { query } = require('./db.js');
 require('dotenv').config();
 
-const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
+const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://robinhood-rpc.publicnode.com';
 const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0xC1C1E61a2b8b604551ba3770bc6248707fBf1f58';
 
 const client = createPublicClient({
@@ -29,8 +29,8 @@ async function handleTokenCreated(log, broadcast) {
   console.log(`🚀 [Indexer] New token created on Robinhood Chain: $${symbol} (${tokenAddress})`);
 
   await query(
-    `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?)
+    `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, tokens_left, creator_tax_bps, holder_tax_bps)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 800000000, ?, ?)
      ON CONFLICT(id) DO NOTHING`,
     [tokenAddress, curveAddress, name, symbol, "Newly launched on Robinhood Chain", "🚀", creator, Number(creatorTaxBps), Number(holderTaxBps)]
   );

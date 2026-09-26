@@ -8,7 +8,7 @@ const RH_MAINNET_CONFIG = {
   chainId: '0x1237', // 4663 in hex
   chainName: 'Robinhood Chain',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
+  rpcUrls: ['https://robinhood-rpc.publicnode.com', 'https://rpc-robinhood.blockmachine.io', 'https://rpc-robinhood.globalstake.io'],
   blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
 };
 
@@ -345,7 +345,11 @@ async function fetchTokensFromDb() {
         icon: dbTok.logo_url || "🚀",
         creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
         realEth: parseFloat(dbTok.real_eth) || 0.0,
-        tokensLeft: parseFloat(dbTok.tokens_left) || 800000000,
+        tokensLeft: (function() {
+          let tl = parseFloat(dbTok.tokens_left) || 800000000;
+          if (tl > 1000000000) tl = tl / 1e18;
+          return tl;
+        })(),
         priceEth: 0.000000034,
         marketCapUsd: parseFloat(dbTok.market_cap_usd) || 12000,
         change24h: 14.5,
