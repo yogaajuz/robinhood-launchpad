@@ -1,0 +1,109 @@
+/* Robinhood Chain Launchpad Custom Styles */
+:root {
+  --rh-green: #00C805;
+  --rh-green-glow: rgba(0, 200, 5, 0.25);
+  --rh-green-dark: #009e04;
+  --rh-red: #ff4b4b;
+  --rh-red-glow: rgba(255, 75, 75, 0.25);
+  --bg-primary: #0b0e14;
+  --bg-secondary: #121721;
+  --bg-card: #181f2c;
+  --bg-card-hover: #1f2737;
+  --border-subtle: #242e42;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3449;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #37445e;
+}
+
+/* Neon & Glass Accents */
+.rh-glow {
+  box-shadow: 0 0 20px var(--rh-green-glow);
+}
+.rh-glow-red {
+  box-shadow: 0 0 20px var(--rh-red-glow);
+}
+.rh-border-glow:focus {
+  border-color: var(--rh-green);
+  box-shadow: 0 0 0 2px var(--rh-green-glow);
+  outline: none;
+}
+
+.glass-panel {
+  background: rgba(24, 31, 44, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Animation utilities */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s infinite ease-in-out;
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(0, 200, 5, 0.35); }
+  100% { background-color: transparent; }
+}
+.trade-flash-buy {
+  animation: flash-green 1.2s ease-out;
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(255, 75, 75, 0.35); }
+  100% { background-color: transparent; }
+}
+.trade-flash-sell {
+  animation: flash-red 1.2s ease-out;
+}
+
+/* Mobile viewport simulator styles */
+.mobile-view-container {
+  max-width: 440px;
+  margin: 0 auto;
+  border: 8px solid #2a3449;
+  border-radius: 40px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+  overflow: hidden;
+  height: 860px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Progress bar fill gradient */
+.progress-fill {
+  background: linear-gradient(90deg, #00C805 0%, #10b981 100%);
+  box-shadow: 0 0 12px rgba(0, 200, 5, 0.5);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
