@@ -207,28 +207,35 @@
           <!-- Swap Input -->
           <div class="bg-[#121721] rounded-xl p-3 border border-gray-800 mb-3">
             <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
-              <span id="swapInputLabel">You Pay (ETH)</span>
-              <button onclick="setMaxAmount()" class="text-[10px] text-[#00C805] hover:underline font-mono font-semibold">Max</button>
+              <span id="swapInputLabel" class="font-semibold text-gray-300">You Pay (ETH)</span>
+              <div class="flex items-center gap-2">
+                <span id="swapAvailableBalance" class="text-[11px] text-gray-400 font-mono">Bal: 0.00 ETH</span>
+                <button type="button" onclick="setMaxAmount()" class="text-[10px] px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-[#00C805] font-mono font-bold transition cursor-pointer">MAX</button>
+              </div>
             </div>
             <div class="flex items-center gap-2">
-              <input id="swapInputAmount" oninput="updateSwapEstimate()" type="number" step="0.01" placeholder="0.0" class="w-full bg-transparent text-lg font-mono font-bold text-white focus:outline-none">
-              <span class="text-xs font-bold font-mono px-2 py-1 bg-gray-800 rounded-lg text-white">ETH</span>
+              <input id="swapInputAmount" oninput="updateSwapEstimate()" type="number" step="any" placeholder="0.0" class="w-full bg-transparent text-lg font-mono font-bold text-white focus:outline-none">
+              <span id="swapInputCurrencyBadge" class="text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-white shrink-0">ETH</span>
             </div>
           </div>
 
           <!-- Quick Presets -->
-          <div class="flex items-center gap-1.5 mb-3 text-xs font-mono">
-            <button onclick="setPresetAmount(0.01)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800">0.01</button>
-            <button onclick="setPresetAmount(0.05)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800">0.05</button>
-            <button onclick="setPresetAmount(0.1)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800">0.10</button>
-            <button onclick="setPresetAmount(0.5)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800">0.50</button>
+          <div id="swapPresetsContainer" class="flex items-center gap-1.5 mb-3 text-xs font-mono">
+            <button type="button" onclick="setPresetAmount(0.01)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.01</button>
+            <button type="button" onclick="setPresetAmount(0.05)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.05</button>
+            <button type="button" onclick="setPresetAmount(0.1)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.10</button>
+            <button type="button" onclick="setPresetAmount(0.5)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.50</button>
           </div>
 
           <!-- Swap Output -->
           <div class="bg-[#121721] rounded-xl p-3 border border-gray-800 mb-4">
-            <div class="text-xs text-gray-400 mb-1" id="swapOutputLabel">You Receive ($GME2)</div>
+            <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
+              <span id="swapOutputLabel" class="font-semibold text-gray-300">You Receive ($TICKER)</span>
+              <span class="text-[10px] text-gray-500 font-mono">Estimated</span>
+            </div>
             <div class="flex items-center gap-2">
               <input id="swapOutputAmount" type="text" readonly placeholder="0" class="w-full bg-transparent text-lg font-mono font-bold text-[#00C805] focus:outline-none">
+              <span id="swapOutputCurrencyBadge" class="text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-gray-300 shrink-0">$TICKER</span>
             </div>
           </div>
 
@@ -249,8 +256,8 @@
           </div>
 
           <!-- Action Button -->
-          <button id="executeSwapBtn" onclick="executeSwap()" class="w-full py-3 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98]">
-            Instant Buy (ETH)
+          <button id="executeSwapBtn" onclick="executeSwap()" class="w-full py-3.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98] cursor-pointer">
+            Instant Buy with ETH
           </button>
         </div>
 

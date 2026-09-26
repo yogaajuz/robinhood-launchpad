@@ -834,6 +834,7 @@ function renderTerminal() {
   const tokenHolding = userWallet.holdings[activeToken.id] || 0;
   document.getElementById("userTokenBalance").innerText = `${tokenHolding.toLocaleString()} $${activeToken.ticker}`;
 
+  setSwapMode(swapMode);
   renderHolderRewardsCard();
   renderTradeHistory();
   renderComments();
@@ -1022,21 +1023,74 @@ function setSwapMode(mode) {
   const actionBtn = document.getElementById("executeSwapBtn");
   const inputLabel = document.getElementById("swapInputLabel");
   const outputLabel = document.getElementById("swapOutputLabel");
+  const inputBadge = document.getElementById("swapInputCurrencyBadge");
+  const outputBadge = document.getElementById("swapOutputCurrencyBadge");
+  const availableBal = document.getElementById("swapAvailableBalance");
+  const presetsContainer = document.getElementById("swapPresetsContainer");
+  const inputAmountElem = document.getElementById("swapInputAmount");
+
+  const ticker = activeToken ? activeToken.ticker : "TOKEN";
 
   if (mode === "buy") {
-    buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#00C805] text-black shadow";
-    sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white";
-    actionBtn.className = "w-full py-3 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98]";
-    actionBtn.innerText = "Instant Buy (ETH)";
-    inputLabel.innerText = "You Pay (ETH)";
-    outputLabel.innerText = `You Receive ($${activeToken.ticker})`;
+    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#00C805] text-black shadow cursor-pointer";
+    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer";
+    if (actionBtn) {
+      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98] cursor-pointer";
+      actionBtn.innerText = `Instant Buy ($${ticker}) with ETH`;
+    }
+    if (inputLabel) inputLabel.innerText = "You Pay (ETH)";
+    if (outputLabel) outputLabel.innerText = `You Receive ($${ticker})`;
+    if (inputBadge) {
+      inputBadge.innerText = "ETH";
+      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-white shrink-0";
+    }
+    if (outputBadge) {
+      outputBadge.innerText = `$${ticker}`;
+      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-[#00C805]/20 text-[#00C805] rounded-lg shrink-0";
+    }
+    if (inputAmountElem) inputAmountElem.placeholder = "0.0";
+    if (availableBal) {
+      availableBal.innerText = `Bal: ${userWallet.connected ? userWallet.balanceEth.toFixed(4) : '0.00'} ETH`;
+    }
+    if (presetsContainer) {
+      presetsContainer.innerHTML = `
+        <button type="button" onclick="setPresetAmount(0.01)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.01 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.05)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.05 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.1)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.10 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.5)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.50 ETH</button>
+      `;
+    }
   } else {
-    sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#ff4b4b] text-white shadow";
-    buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white";
-    actionBtn.className = "w-full py-3 rounded-xl bg-[#ff4b4b] hover:bg-[#e03a3a] text-white font-bold text-sm shadow-lg shadow-[#ff4b4b]/20 transition active:scale-[0.98]";
-    actionBtn.innerText = `Instant Sell ($${activeToken.ticker})`;
-    inputLabel.innerText = `You Pay ($${activeToken.ticker})`;
-    outputLabel.innerText = "You Receive (ETH)";
+    // SELL MODE: User sells Tokens, receives ETH!
+    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#ff4b4b] text-white shadow cursor-pointer";
+    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer";
+    if (actionBtn) {
+      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#ff4b4b] hover:bg-[#e03a3a] text-white font-bold text-sm shadow-lg shadow-[#ff4b4b]/20 transition active:scale-[0.98] cursor-pointer";
+      actionBtn.innerText = `Instant Sell ($${ticker}) for ETH`;
+    }
+    if (inputLabel) inputLabel.innerText = `You Sell ($${ticker})`;
+    if (outputLabel) outputLabel.innerText = "You Receive (ETH)";
+    if (inputBadge) {
+      inputBadge.innerText = `$${ticker}`;
+      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-red-500/20 text-red-300 rounded-lg shrink-0";
+    }
+    if (outputBadge) {
+      outputBadge.innerText = "ETH";
+      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-white shrink-0";
+    }
+    if (inputAmountElem) inputAmountElem.placeholder = "0";
+    const holding = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+    if (availableBal) {
+      availableBal.innerText = `Bal: ${userWallet.connected ? holding.toLocaleString() : '0'} $${ticker}`;
+    }
+    if (presetsContainer) {
+      presetsContainer.innerHTML = `
+        <button type="button" onclick="setPresetPercent(25)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">25%</button>
+        <button type="button" onclick="setPresetPercent(50)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">50%</button>
+        <button type="button" onclick="setPresetPercent(75)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">75%</button>
+        <button type="button" onclick="setPresetPercent(100)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-[#00C805] border border-gray-800 font-bold cursor-pointer">100%</button>
+      `;
+    }
   }
 
   updateSwapEstimate();
@@ -1048,30 +1102,32 @@ function updateSwapEstimate() {
   const feeElem = document.getElementById("swapFeeDisplay");
   const taxBreakdownElem = document.getElementById("swapTaxBreakdown");
 
-  const totalTaxPct = 1.0 + activeToken.creatorTax + activeToken.holderTax;
+  const totalTaxPct = 1.0 + (activeToken ? activeToken.creatorTax : 0) + (activeToken ? activeToken.holderTax : 0);
 
   if (swapMode === "buy") {
+    // BUYING: Input is ETH, Output is Tokens
     if (input <= 0) {
-      outputElem.value = "0";
-      feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
-      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken.creatorTax}% Dev | ${activeToken.holderTax}% Holders`;
+      if (outputElem) outputElem.value = "0";
+      if (feeElem) feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
+      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
       return;
     }
-    const { tokensOut, totalFees } = calculateTokensOut(input, activeToken.realEth, activeToken);
-    outputElem.value = Math.floor(tokensOut).toLocaleString();
-    feeElem.innerText = `${totalFees.toFixed(4)} ETH (${totalTaxPct.toFixed(1)}%)`;
-    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken.creatorTax}% Dev | ${activeToken.holderTax}% Holders`;
+    const { tokensOut, totalFees } = calculateTokensOut(input, activeToken ? activeToken.realEth : 0, activeToken);
+    if (outputElem) outputElem.value = Math.floor(tokensOut).toLocaleString();
+    if (feeElem) feeElem.innerText = `${totalFees.toFixed(4)} ETH (${totalTaxPct.toFixed(1)}%)`;
+    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
   } else {
+    // SELLING: Input is Tokens, Output is ETH
     if (input <= 0) {
-      outputElem.value = "0";
-      feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
-      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken.creatorTax}% Dev | ${activeToken.holderTax}% Holders`;
+      if (outputElem) outputElem.value = "0.0000";
+      if (feeElem) feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
+      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
       return;
     }
-    const { netEthOut, totalFees } = calculateEthOut(input, activeToken.realEth, activeToken);
-    outputElem.value = netEthOut.toFixed(4);
-    feeElem.innerText = `${totalFees.toFixed(4)} ETH (${totalTaxPct.toFixed(1)}%)`;
-    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken.creatorTax}% Dev | ${activeToken.holderTax}% Holders`;
+    const { netEthOut, totalFees } = calculateEthOut(input, activeToken ? activeToken.realEth : 0, activeToken);
+    if (outputElem) outputElem.value = netEthOut.toFixed(6);
+    if (feeElem) feeElem.innerText = `${totalFees.toFixed(6)} ETH (${totalTaxPct.toFixed(1)}%)`;
+    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
   }
 }
 
@@ -1129,8 +1185,31 @@ async function executeSwap() {
       alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
     } else {
       // Selling tokens
+      const userTokenBal = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+      if (inputAmount > userTokenBal) {
+        alert(`Insufficient $${activeToken.ticker} balance in your wallet!\nYour balance: ${userTokenBal.toLocaleString()} $${activeToken.ticker}\nAttempted sell: ${inputAmount.toLocaleString()} $${activeToken.ticker}`);
+        return;
+      }
+
       const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserSigner);
-      const tokensWei = ethers.parseEther(inputAmount.toString());
+      const onChainBal = await tokenContract.balanceOf(userWallet.address);
+
+      let tokensWei;
+      if (inputAmount >= userTokenBal * 0.9999) {
+        // If selling all or virtually all holding, use exact on-chain balance to prevent rounding dust
+        tokensWei = onChainBal;
+      } else {
+        tokensWei = ethers.parseEther(inputAmount.toString());
+      }
+
+      if (tokensWei === 0n || tokensWei > onChainBal) {
+        tokensWei = onChainBal;
+      }
+
+      if (tokensWei === 0n) {
+        alert(`You do not have any $${activeToken.ticker} tokens to sell.`);
+        return;
+      }
 
       if (actionBtn) actionBtn.innerText = "Checking Token Approval...";
       const allowance = await tokenContract.allowance(userWallet.address, activeToken.curveAddress);
@@ -1565,13 +1644,30 @@ function setPresetAmount(amount) {
   updateSwapEstimate();
 }
 
+function setPresetPercent(percent) {
+  if (swapMode === "sell") {
+    const holding = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+    if (percent === 100) {
+      document.getElementById("swapInputAmount").value = holding > 0 ? holding : "0";
+    } else {
+      const amount = (holding * percent) / 100;
+      document.getElementById("swapInputAmount").value = amount >= 1 ? Math.floor(amount) : (amount > 0 ? amount.toFixed(4) : "0");
+    }
+  } else {
+    const maxEth = Math.max(0, userWallet.balanceEth - 0.001);
+    const amount = (maxEth * percent) / 100;
+    document.getElementById("swapInputAmount").value = (amount > 0) ? amount.toFixed(4) : "0";
+  }
+  updateSwapEstimate();
+}
+
 function setMaxAmount() {
   if (swapMode === "buy") {
     const maxEth = Math.max(0, userWallet.balanceEth - 0.001);
-    document.getElementById("swapInputAmount").value = maxEth.toFixed(4);
+    document.getElementById("swapInputAmount").value = maxEth > 0 ? maxEth.toFixed(4) : "0";
   } else {
-    const maxTokens = userWallet.holdings[activeToken.id] || 0;
-    document.getElementById("swapInputAmount").value = maxTokens;
+    const maxTokens = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+    document.getElementById("swapInputAmount").value = maxTokens > 0 ? maxTokens : "0";
   }
   updateSwapEstimate();
 }
