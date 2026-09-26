@@ -24,7 +24,7 @@ const RH_TESTNET_CONFIG = {
 let RH_CHAIN_CONFIG = RH_MAINNET_CONFIG;
 
 // Deployed Smart Contracts on Robinhood Chain Mainnet
-const FACTORY_CONTRACT_ADDRESS = '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
+let FACTORY_CONTRACT_ADDRESS = '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
 const UNISWAP_V4_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951';
 
 // Full Smart Contract ABIs for On-Chain Interactions
@@ -315,6 +315,11 @@ async function initBackendSync() {
     const res = await fetch(`${BACKEND_API_URL}/health`);
     if (res.ok) {
       isBackendConnected = true;
+      const healthData = await res.json();
+      if (healthData.factoryAddress && healthData.factoryAddress.startsWith("0x") && healthData.factoryAddress !== '0x0000000000000000000000000000000000000000') {
+        FACTORY_CONTRACT_ADDRESS = healthData.factoryAddress;
+        console.log(`📡 [Mainnet] Using Factory Contract: ${FACTORY_CONTRACT_ADDRESS}`);
+      }
       console.log(`✅ Connected to Launchpad Backend at ${BACKEND_API_URL}`);
       await fetchTokensFromDb();
       connectWebSocket();
@@ -1246,17 +1251,49 @@ async function handleCreateTokenSubmit(e) {
   }
 
   try {
+    // 1. Verify that the user is connected to Robinhood Chain Mainnet (Chain 4663)
+    const net = await browserProvider.getNetwork();
+    if (Number(net.chainId) !== 4663) {
+      alert("⚠️ Wrong Network!\n\nPlease switch your MetaMask wallet to Robinhood Chain Mainnet (Chain ID 4663) to deploy a coin.");
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: RH_MAINNET_CONFIG.chainId }],
+        });
+      } catch (swErr) {
+        console.warn(swErr);
+      }
+      return;
+    }
+
+    // 2. Verify that the Factory Contract has deployed bytecode on-chain
+    const factoryCode = await browserProvider.getCode(FACTORY_CONTRACT_ADDRESS);
+    if (!factoryCode || factoryCode === "0x" || factoryCode === "0x0") {
+      alert(
+        `⚠️ Factory Contract Not Deployed Yet!\n\n` +
+        `The factory address (${FACTORY_CONTRACT_ADDRESS}) does not have contract bytecode on Robinhood Chain Mainnet yet.\n\n` +
+        `👉 If you are the platform owner, please visit:\nhttps://${window.location.host}/deploy.html\n\nto deploy the Factory Contract in 1-Click with your MetaMask! Once deployed, coins can be created immediately.`
+      );
+      return;
+    }
+
     const factory = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_ABI, browserSigner);
     const creatorTaxBps = Math.round(creatorTax * 100);
     const holderTaxBps = Math.round(holderTax * 100);
     const devBuyWei = devBuyEth > 0 ? ethers.parseEther(devBuyEth.toString()) : 0n;
+
+    // Sanitize on-chain metadata URI to avoid massive base64 calldata out-of-gas reverts
+    let onChainMetadataUri = finalIcon;
+    if (onChainMetadataUri.startsWith("data:image/") || onChainMetadataUri.length > 256) {
+      onChainMetadataUri = `${window.location.origin}/uploads/logo_${ticker.toLowerCase()}.png`;
+    }
 
     if (submitBtn) submitBtn.innerText = "Deploying on Robinhood Chain...";
 
     const tx = await factory.createToken(
       name,
       ticker,
-      finalIcon,
+      onChainMetadataUri,
       creatorTaxBps,
       holderTaxBps,
       { value: devBuyWei }
