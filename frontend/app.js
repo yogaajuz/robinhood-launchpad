@@ -1,12 +1,12 @@
 /**
  * Robinhood Chain Launchpad - Application Core
- * Arbitrum Orbit L2 (Chain ID 46630)
- * 2.0 ETH Bonding Curve with Uniswap v4 Migration, Logo Upload, and Dynamic Cloud Hosting Sync
+ * Arbitrum Orbit L2 (Chain ID 4663 - Robinhood Chain Mainnet)
+ * 2.0 ETH Bonding Curve with Uniswap v4 Singleton LP Migration, Real Web3 Wallet & Cloud Sync
  */
 
 const RH_MAINNET_CONFIG = {
   chainId: '0x1237', // 4663 in hex
-  chainName: 'Robinhood Chain Mainnet',
+  chainName: 'Robinhood Chain',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
   blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
@@ -20,12 +20,53 @@ const RH_TESTNET_CONFIG = {
   blockExplorerUrls: ['https://explorer.testnet.chain.robinhood.com']
 };
 
-// Default to Robinhood Chain Mainnet (4663)
+// Default strictly to Robinhood Chain Mainnet (4663)
 let RH_CHAIN_CONFIG = RH_MAINNET_CONFIG;
 
 // Deployed Smart Contracts on Robinhood Chain Mainnet
 const FACTORY_CONTRACT_ADDRESS = '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
 const UNISWAP_V4_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951';
+
+// Full Smart Contract ABIs for On-Chain Interactions
+const FACTORY_ABI = [
+  "function createToken(string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps) external payable returns (address tokenAddress, address curveAddress)",
+  "function totalLaunches() external view returns (uint256)",
+  "function allCurves(uint256 index) external view returns (address)",
+  "function tokenToCurve(address token) external view returns (address)",
+  "function curveToToken(address curve) external view returns (address)",
+  "event TokenCreated(address indexed tokenAddress, address indexed curveAddress, address indexed creator, string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps, uint256 timestamp)"
+];
+
+const BONDING_CURVE_ABI = [
+  "function buyTokens(uint256 minTokensExpected) external payable",
+  "function sellTokens(uint256 tokensIn, uint256 minEthExpected) external",
+  "function claimHolderRewards() external",
+  "function realEthReserve() external view returns (uint256)",
+  "function tokenReserve() external view returns (uint256)",
+  "function isGraduated() external view returns (bool)",
+  "function creatorTaxBps() external view returns (uint256)",
+  "function holderTaxBps() external view returns (uint256)",
+  "function token() external view returns (address)",
+  "function creator() external view returns (address)",
+  "function claimableRewards(address holder) external view returns (uint256)",
+  "function getTokensOutForEth(uint256 ethIn) external view returns (uint256 tokensOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
+  "function getEthOutForTokens(uint256 tokensIn) external view returns (uint256 netEthOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
+  "event TokensPurchased(address indexed buyer, uint256 ethPaid, uint256 tokensReceived, uint256 protocolFee, uint256 creatorTax, uint256 holderTax)",
+  "event TokensSold(address indexed seller, uint256 tokensIn, uint256 ethReturned, uint256 protocolFee, uint256 creatorTax, uint256 holderTax)",
+  "event HolderRewardClaimed(address indexed holder, uint256 ethAmount)",
+  "event UniswapV4Graduated(address indexed token, uint256 ethGraduated, uint256 tokensGraduated, address uniswapV4Pool)"
+];
+
+const ERC20_ABI = [
+  "function name() external view returns (string)",
+  "function symbol() external view returns (string)",
+  "function decimals() external view returns (uint8)",
+  "function totalSupply() external view returns (uint256)",
+  "function balanceOf(address account) external view returns (uint256)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function transfer(address to, uint256 amount) external returns (bool)"
+];
 
 const AMM_PARAMS = {
   TOTAL_SUPPLY: 1_000_000_000,
@@ -46,10 +87,16 @@ const WS_URL = isLocalhost
 let isBackendConnected = false;
 let wsClient = null;
 
-// --- Initial Mock / Fallback Tokens Data ---
+// Web3 Provider & Signer References
+let browserProvider = null;
+let browserSigner = null;
+
+// --- Initial Showcase Tokens (will be augmented by live Neon DB / On-chain launches) ---
 let tokens = [
   {
     id: "gme2",
+    address: null,
+    curveAddress: null,
     ticker: "GME2",
     name: "GameStop 2.0",
     description: "The digital sequel to the short squeeze that started it all on Robinhood. Can't stop, won't stop.",
@@ -69,6 +116,8 @@ let tokens = [
   },
   {
     id: "wsb",
+    address: null,
+    curveAddress: null,
     ticker: "WSB",
     name: "WallStreetBets Token",
     description: "Diamond hands only. Built for the retail army ready to graduate into Uniswap v4.",
@@ -88,6 +137,8 @@ let tokens = [
   },
   {
     id: "hoodie",
+    address: null,
+    curveAddress: null,
     ticker: "HOODIE",
     name: "RobinHoodie",
     description: "Official mascot token for the Robinhood Chain degens wearing neon green hoodies.",
@@ -107,6 +158,8 @@ let tokens = [
   },
   {
     id: "deepvalue",
+    address: null,
+    curveAddress: null,
     ticker: "DFV",
     name: "Deep F***ing Value",
     description: "In memory of the red headband and the roaring kitten. Pure classic fair launch.",
@@ -126,6 +179,8 @@ let tokens = [
   },
   {
     id: "doge2",
+    address: null,
+    curveAddress: null,
     ticker: "DOGE2",
     name: "Robin Doge",
     description: "Successfully graduated into Uniswap v4 with LP burned permanently.",
@@ -152,38 +207,21 @@ let ethUsdPrice = 4200;
 let uploadedLogoDataUrl = null;
 let uploadedLogoFileRaw = null;
 
+// User Wallet initialized to REAL unauthenticated state (Zero fake balance!)
 let userWallet = {
   connected: false,
   address: null,
-  balanceEth: 2.50,
-  holdings: {
-    "gme2": 450000,
-    "hoodie": 0,
-    "wsb": 120000,
-    "deepvalue": 0,
-    "doge2": 0
-  },
-  claimableRewardsEth: {
-    "gme2": 0.0185,
-    "wsb": 0.0092,
-    "hoodie": 0,
-    "deepvalue": 0,
-    "doge2": 0
-  }
+  balanceEth: 0.0,
+  holdings: {},
+  claimableRewardsEth: {}
 };
 
-let recentTrades = [
-  { type: "buy", user: "0x89f...21a", eth: 0.15, tokens: 6800000, time: "Just now" },
-  { type: "buy", user: "0x44e...99c", eth: 0.05, tokens: 2750000, time: "1m ago" },
-  { type: "sell", user: "0x12a...77b", eth: 0.04, tokens: 2200000, time: "2m ago" },
-  { type: "buy", user: "0x66c...33f", eth: 0.20, tokens: 13500000, time: "4m ago" }
-];
+let recentTrades = [];
 
 let comments = [
-  { user: "DegenDave", text: "Target is only 2 ETH! Uniswap v4 graduation is right around the corner 🚀", time: "2m ago", avatar: "🤠" },
-  { user: "UniswapV4Alpha", text: "Uniswap v4 singleton pool will lock liquidity with zero hook risk.", time: "4m ago", avatar: "🦄" },
-  { user: "RobinTrader", text: "Robinhood Chain gas is literally 0.0001 ETH, so smooth.", time: "6m ago", avatar: "⚡" },
-  { user: "ApeTogether", text: "Holding $GME2 pays real ETH dividends! Just claimed 0.018 ETH.", time: "11m ago", avatar: "🦍" }
+  { user: "0x742d...44e", text: "Robinhood Chain gas is under 0.0001 ETH, super fast L2! ⚡", time: "5m ago", avatar: "🏹" },
+  { user: "0x892a...12c", text: "2.0 ETH target makes graduation super fast into Uniswap v4.", time: "12m ago", avatar: "🦄" },
+  { user: "0x19a2...99f", text: "Reflection dividends are sent straight in native ETH.", time: "25m ago", avatar: "💎" }
 ];
 
 // --- Helper: Render Token Icon ---
@@ -260,7 +298,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   drawChart();
 
   await initBackendSync();
-  setInterval(simulateLiveMarketTick, 7000);
+
+  // Auto-connect if already authorized in MetaMask
+  if (window.ethereum && window.ethereum.selectedAddress) {
+    try {
+      await connectWallet();
+    } catch (e) {
+      console.log("Auto-connect quiet skip:", e);
+    }
+  }
 });
 
 // --- Backend Sync & WebSocket ---
@@ -274,7 +320,7 @@ async function initBackendSync() {
       connectWebSocket();
     }
   } catch (err) {
-    console.log('ℹ️ Running in standalone client mode (backend server offline).');
+    console.log('ℹ️ Running in standalone Web3 client mode directly with Robinhood Chain Mainnet.');
   }
 }
 
@@ -282,15 +328,17 @@ async function fetchTokensFromDb() {
   try {
     const res = await fetch(`${BACKEND_API_URL}/tokens?sort=${activeTab}`);
     const data = await res.json();
-    if (data.success && data.tokens.length > 0) {
+    if (data.success && data.tokens && data.tokens.length > 0) {
       tokens = data.tokens.map(dbTok => ({
         id: dbTok.id,
+        address: dbTok.id && dbTok.id.startsWith("0x") ? dbTok.id : null,
+        curveAddress: dbTok.curve_address && dbTok.curve_address.startsWith("0x") ? dbTok.curve_address : null,
         ticker: dbTok.symbol,
         name: dbTok.name,
         description: dbTok.description,
         icon: dbTok.logo_url || "🚀",
-        creator: dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4),
-        realEth: parseFloat(dbTok.real_eth) || 0.1,
+        creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
+        realEth: parseFloat(dbTok.real_eth) || 0.0,
         tokensLeft: parseFloat(dbTok.tokens_left) || 800000000,
         priceEth: 0.000000034,
         marketCapUsd: parseFloat(dbTok.market_cap_usd) || 12000,
@@ -337,20 +385,148 @@ function connectWebSocket() {
   }
 }
 
+// --- Real Web3 Mainnet Connection Logic ---
+
+async function connectWallet() {
+  if (typeof window.ethereum === 'undefined') {
+    alert("MetaMask or compatible Web3 wallet not detected!\n\nPlease install MetaMask, Rabby, or Coinbase Wallet to interact with Robinhood Chain Mainnet.");
+    return;
+  }
+
+  try {
+    browserProvider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = await browserProvider.send("eth_requestAccounts", []);
+    if (!accounts || accounts.length === 0) {
+      alert("No accounts authorized in wallet.");
+      return;
+    }
+
+    // Check Network & prompt switch to Robinhood Chain Mainnet (4663 / 0x1237)
+    const net = await browserProvider.getNetwork();
+    if (Number(net.chainId) !== 4663) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: RH_MAINNET_CONFIG.chainId }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902 || switchError?.data?.originalError?.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [RH_MAINNET_CONFIG],
+          });
+        } else {
+          console.warn("Chain switch error:", switchError);
+        }
+      }
+    }
+
+    browserSigner = await browserProvider.getSigner();
+    const address = await browserSigner.getAddress();
+
+    userWallet.connected = true;
+    userWallet.address = address;
+
+    // Fetch live on-chain balances
+    await refreshUserWalletData();
+
+    // Attach listeners
+    if (window.ethereum.on) {
+      window.ethereum.on("accountsChanged", async (newAccounts) => {
+        if (!newAccounts || newAccounts.length === 0) {
+          disconnectWallet();
+        } else {
+          userWallet.address = newAccounts[0];
+          browserSigner = await browserProvider.getSigner();
+          await refreshUserWalletData();
+        }
+      });
+
+      window.ethereum.on("chainChanged", () => {
+        window.location.reload();
+      });
+    }
+
+    renderHeader();
+    renderTerminal();
+  } catch (e) {
+    console.error("Wallet connection failed:", e);
+    alert("Wallet connection failed: " + (e.message || "User cancelled"));
+  }
+}
+
+function disconnectWallet() {
+  userWallet.connected = false;
+  userWallet.address = null;
+  userWallet.balanceEth = 0.0;
+  userWallet.holdings = {};
+  userWallet.claimableRewardsEth = {};
+  browserProvider = null;
+  browserSigner = null;
+  renderHeader();
+  renderTerminal();
+}
+
+async function refreshUserWalletData() {
+  if (!userWallet.connected || !browserProvider || !userWallet.address) return;
+
+  try {
+    const balWei = await browserProvider.getBalance(userWallet.address);
+    userWallet.balanceEth = parseFloat(ethers.formatEther(balWei));
+
+    // If active token has on-chain contracts, query real token balance & reflection dividends
+    if (activeToken && activeToken.address && activeToken.address.startsWith("0x")) {
+      try {
+        const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserProvider);
+        const tokenBal = await tokenContract.balanceOf(userWallet.address);
+        userWallet.holdings[activeToken.id] = parseFloat(ethers.formatEther(tokenBal));
+      } catch (e) {
+        console.warn("Could not query token balance:", e);
+      }
+
+      if (activeToken.curveAddress && activeToken.curveAddress.startsWith("0x")) {
+        try {
+          const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserProvider);
+          const rewardWei = await curveContract.claimableRewards(userWallet.address);
+          userWallet.claimableRewardsEth[activeToken.id] = parseFloat(ethers.formatEther(rewardWei));
+
+          const realEthWei = await curveContract.realEthReserve();
+          activeToken.realEth = parseFloat(ethers.formatEther(realEthWei));
+          activeToken.graduated = await curveContract.isGraduated();
+        } catch (e) {
+          console.warn("Could not query curve data:", e);
+        }
+      }
+    }
+
+    renderHeader();
+    renderTerminal();
+  } catch (err) {
+    console.warn("Error refreshing wallet data:", err);
+  }
+}
+
 // --- UI Rendering Functions ---
 
 function renderHeader() {
   const walletBtn = document.getElementById("walletConnectBtn");
   const balanceDisplay = document.getElementById("walletBalanceDisplay");
 
-  if (userWallet.connected) {
+  if (userWallet.connected && userWallet.address) {
+    const shortAddr = userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4);
     walletBtn.innerHTML = `
       <span class="w-2 h-2 rounded-full bg-[#00C805] animate-ping mr-1"></span>
-      <span class="font-mono text-xs">${userWallet.address}</span>
+      <span class="font-mono text-xs font-bold text-[#00C805]">${shortAddr}</span>
     `;
-    walletBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#181f2c] border border-[#00C805] text-[#00C805] text-xs font-semibold hover:bg-opacity-80 transition";
+    walletBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#181f2c] border border-[#00C805] text-[#00C805] text-xs font-semibold hover:bg-[#1f293d] transition cursor-pointer";
+    walletBtn.onclick = () => {
+      if (confirm(`Connected: ${userWallet.address}\nBalance: ${userWallet.balanceEth.toFixed(4)} ETH\n\nDo you want to disconnect?`)) {
+        disconnectWallet();
+      }
+    };
+
     if (balanceDisplay) {
-      balanceDisplay.innerHTML = `<span class="text-xs text-gray-400">Balance:</span> <span class="text-xs font-mono font-bold text-white">${userWallet.balanceEth.toFixed(3)} ETH</span>`;
+      balanceDisplay.innerHTML = `<span class="text-xs text-gray-400">Balance:</span> <span class="text-xs font-mono font-bold text-white">${userWallet.balanceEth.toFixed(4)} ETH</span>`;
       balanceDisplay.classList.remove("hidden");
     }
   } else {
@@ -358,7 +534,9 @@ function renderHeader() {
       <svg class="w-4 h-4 text-[#00C805]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
       <span>Connect Wallet</span>
     `;
-    walletBtn.className = "flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#00C805] text-black text-xs font-bold hover:bg-[#10b981] transition shadow-md shadow-[#00C805]/20";
+    walletBtn.className = "flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#00C805] text-black text-xs font-bold hover:bg-[#10b981] transition shadow-md shadow-[#00C805]/20 cursor-pointer";
+    walletBtn.onclick = connectWallet;
+
     if (balanceDisplay) balanceDisplay.classList.add("hidden");
   }
 }
@@ -512,7 +690,7 @@ function renderTerminal() {
   document.getElementById("terminalMcap").innerText = `$${activeToken.marketCapUsd.toLocaleString()}`;
   document.getElementById("terminalVolume").innerText = `$${activeToken.volume24hUsd.toLocaleString()}`;
 
-  // Progress Bar for 2.0 ETH
+  // Progress Bar for 2.0 ETH Target
   document.getElementById("terminalProgressPercent").innerText = `${math.progressPercent.toFixed(1)}%`;
   document.getElementById("terminalEthProgress").innerText = `${activeToken.realEth.toFixed(2)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(2)} ETH`;
   document.getElementById("terminalProgressBar").style.width = `${math.progressPercent}%`;
@@ -570,21 +748,40 @@ function renderHolderRewardsCard() {
   }
 }
 
-function claimRewards() {
-  const claimable = userWallet.claimableRewardsEth[activeToken.id] || 0;
-  if (claimable <= 0) return;
+async function claimRewards() {
+  if (!userWallet.connected || !browserSigner) {
+    alert("Please connect your Web3 wallet first!");
+    await connectWallet();
+    if (!userWallet.connected || !browserSigner) return;
+  }
 
-  userWallet.balanceEth += claimable;
-  userWallet.claimableRewardsEth[activeToken.id] = 0;
+  if (!activeToken.curveAddress || !activeToken.curveAddress.startsWith("0x")) {
+    alert("Rewards can only be claimed for live on-chain tokens.");
+    return;
+  }
 
-  renderHeader();
-  renderHolderRewardsCard();
-  alert(`🎉 Successfully claimed ${claimable.toFixed(4)} ETH in holder reflection rewards!`);
+  try {
+    const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserSigner);
+    const tx = await curveContract.claimHolderRewards();
+    alert("Claim transaction submitted! Waiting for block confirmation on Robinhood Chain...");
+    const receipt = await tx.wait();
+
+    alert(`🎉 Successfully claimed ETH reflection rewards!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
+    await refreshUserWalletData();
+  } catch (err) {
+    console.error("Claim error:", err);
+    alert("Failed to claim rewards: " + (err.reason || err.message || err));
+  }
 }
 
 function renderTradeHistory() {
   const container = document.getElementById("tradeHistoryContainer");
   if (!container) return;
+
+  if (recentTrades.length === 0) {
+    container.innerHTML = `<div class="text-center py-4 text-xs text-gray-500">No on-chain trades yet. Be the first to buy!</div>`;
+    return;
+  }
 
   container.innerHTML = recentTrades.map(trade => `
     <div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-800/60 font-mono">
@@ -595,7 +792,7 @@ function renderTradeHistory() {
         <span class="text-gray-400">${trade.user}</span>
       </div>
       <div class="text-right">
-        <div class="text-white">${trade.eth.toFixed(3)} ETH</div>
+        <div class="text-white">${trade.eth.toFixed(4)} ETH</div>
         <div class="text-[10px] text-gray-500">${trade.time}</div>
       </div>
     </div>
@@ -640,12 +837,12 @@ function drawChart() {
     ctx.stroke();
   }
 
-  const data = activeToken.history;
+  const data = activeToken.history && activeToken.history.length > 1 ? activeToken.history : [0.05, activeToken.realEth || 0.05];
   const minVal = Math.min(...data) * 0.9;
   const maxVal = Math.max(...data) * 1.1;
 
-  const stepX = width / (data.length - 1);
-  const getY = val => height - 30 - ((val - minVal) / (maxVal - minVal)) * (height - 60);
+  const stepX = width / Math.max(1, data.length - 1);
+  const getY = val => height - 30 - ((val - minVal) / (maxVal - minVal || 1)) * (height - 60);
 
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
   gradient.addColorStop(0, "rgba(0, 200, 5, 0.35)");
@@ -749,10 +946,11 @@ function updateSwapEstimate() {
   }
 }
 
-function executeSwap() {
-  if (!userWallet.connected) {
-    connectWallet();
-    return;
+async function executeSwap() {
+  if (!userWallet.connected || !browserSigner) {
+    alert("Please connect your Web3 wallet first to trade on Robinhood Chain Mainnet!");
+    await connectWallet();
+    if (!userWallet.connected || !browserSigner) return;
   }
 
   const inputAmount = parseFloat(document.getElementById("swapInputAmount")?.value) || 0;
@@ -761,161 +959,89 @@ function executeSwap() {
     return;
   }
 
-  if (swapMode === "buy") {
-    if (inputAmount > userWallet.balanceEth) {
-      alert("Insufficient ETH balance on Robinhood Chain Mainnet!");
-      return;
-    }
-
-    const { tokensOut, totalFees, holderFee } = calculateTokensOut(inputAmount, activeToken.realEth, activeToken);
-
-    userWallet.balanceEth -= inputAmount;
-    userWallet.holdings[activeToken.id] = (userWallet.holdings[activeToken.id] || 0) + tokensOut;
-
-    if (activeToken.holderTax > 0) {
-      const userShareRatio = (userWallet.holdings[activeToken.id] / AMM_PARAMS.TOKENS_FOR_CURVE);
-      userWallet.claimableRewardsEth[activeToken.id] = (userWallet.claimableRewardsEth[activeToken.id] || 0) + (holderFee * userShareRatio);
-    }
-
-    activeToken.realEth += (inputAmount - totalFees);
-    activeToken.history.push(activeToken.realEth);
-    activeToken.marketCapUsd = Math.round(activeToken.realEth * ethUsdPrice * 8);
-
-    recentTrades.unshift({
-      type: "buy",
-      user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
-      eth: inputAmount,
-      tokens: Math.floor(tokensOut),
-      time: "Just now"
-    });
-
-    if (activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET && !activeToken.graduated) {
-      activeToken.graduated = true;
-      triggerGraduationCelebration(activeToken);
-    }
-  } else {
-    const currentHolding = userWallet.holdings[activeToken.id] || 0;
-    if (inputAmount > currentHolding) {
-      alert(`Insufficient $${activeToken.ticker} balance to sell!`);
-      return;
-    }
-
-    const { netEthOut, totalFees } = calculateEthOut(inputAmount, activeToken.realEth, activeToken);
-
-    userWallet.balanceEth += netEthOut;
-    userWallet.holdings[activeToken.id] -= inputAmount;
-
-    activeToken.realEth = Math.max(0.05, activeToken.realEth - (netEthOut + totalFees));
-    activeToken.history.push(activeToken.realEth);
-    activeToken.marketCapUsd = Math.round(activeToken.realEth * ethUsdPrice * 8);
-
-    recentTrades.unshift({
-      type: "sell",
-      user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
-      eth: netEthOut,
-      tokens: Math.floor(inputAmount),
-      time: "Just now"
-    });
+  // Check if token has an on-chain curve contract
+  if (!activeToken.curveAddress || !activeToken.curveAddress.startsWith("0x")) {
+    alert(`Token $${activeToken.ticker} is a demo/showcase token.\n\nTo trade live on Robinhood Chain Mainnet, launch your own coin using 'Deploy Coin'!`);
+    return;
   }
 
-  renderHeader();
-  renderKothBanner();
-  renderTokenGrid();
-  renderTerminal();
-  drawChart();
+  const actionBtn = document.getElementById("executeSwapBtn");
+  const originalBtnText = actionBtn ? actionBtn.innerText : "Swap";
 
-  document.getElementById("swapInputAmount").value = "";
-  updateSwapEstimate();
-}
-
-function triggerGraduationCelebration(token) {
-  alert(`🦄 CONGRATULATIONS! $${token.ticker} has reached the 2.0 ETH bonding curve target!\n\nAutomated liquidity migration initiated to Uniswap v4 Singleton PoolManager (Native ETH + 200M tokens) with LP permanently locked and burned!`);
-}
-
-function simulateLiveMarketTick() {
-  if (isBackendConnected) return;
-
-  const randomToken = tokens[Math.floor(Math.random() * tokens.length)];
-  if (randomToken.graduated) return;
-
-  const isBuy = Math.random() > 0.35;
-  const tradeEth = (Math.random() * 0.06 + 0.01);
-
-  if (isBuy) {
-    randomToken.realEth = Math.min(AMM_PARAMS.GRADUATION_ETH_TARGET, randomToken.realEth + tradeEth);
-    randomToken.history.push(randomToken.realEth);
-
-    if (randomToken.holderTax > 0 && (userWallet.holdings[randomToken.id] || 0) > 0) {
-      const rewardShare = (tradeEth * (randomToken.holderTax / 100)) * (userWallet.holdings[randomToken.id] / 200000000);
-      userWallet.claimableRewardsEth[randomToken.id] = (userWallet.claimableRewardsEth[randomToken.id] || 0) + rewardShare;
-      if (randomToken.id === activeToken.id) renderHolderRewardsCard();
+  try {
+    if (actionBtn) {
+      actionBtn.disabled = true;
+      actionBtn.innerText = "Confirm in MetaMask...";
     }
 
-    if (randomToken.id === activeToken.id) {
-      recentTrades.unshift({
-        type: "buy",
-        user: `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 5)}`,
-        eth: tradeEth,
-        tokens: Math.floor(tradeEth * 28000000),
-        time: "Just now"
-      });
-      if (recentTrades.length > 20) recentTrades.pop();
-    }
+    const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserSigner);
 
-    if (randomToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET && !randomToken.graduated) {
-      randomToken.graduated = true;
-    }
-  } else {
-    randomToken.realEth = Math.max(0.1, randomToken.realEth - (tradeEth * 0.7));
-    randomToken.history.push(randomToken.realEth);
-  }
-
-  if (randomToken.id === activeToken.id) {
-    renderTerminal();
-    drawChart();
-  }
-  renderTokenGrid();
-  renderKothBanner();
-}
-
-async function connectWallet() {
-  if (window.ethereum) {
-    try {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      userWallet.connected = true;
-      userWallet.address = accounts[0].slice(0, 6) + "..." + accounts[0].slice(-4);
-
-      try {
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: RH_CHAIN_CONFIG.chainId }],
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [RH_CHAIN_CONFIG],
-          });
-        }
+    if (swapMode === "buy") {
+      if (inputAmount > userWallet.balanceEth) {
+        alert(`Insufficient ETH balance in your wallet!\nYour balance: ${userWallet.balanceEth.toFixed(4)} ETH\nAttempted buy: ${inputAmount} ETH`);
+        return;
       }
 
-      renderHeader();
-      renderTerminal();
-    } catch (e) {
-      activateDemoMode();
-    }
-  } else {
-    activateDemoMode();
-  }
-}
+      const ethWei = ethers.parseEther(inputAmount.toString());
+      if (actionBtn) actionBtn.innerText = "Broadcasting Buy Tx...";
+      const tx = await curveContract.buyTokens(0, { value: ethWei });
 
-function activateDemoMode() {
-  userWallet.connected = true;
-  userWallet.address = "0xRH...4663";
-  userWallet.balanceEth = 3.50;
-  renderHeader();
-  renderTerminal();
-  alert("🟢 Connected to Robinhood Chain Mainnet!\n\n• Network: Robinhood Chain (Chain ID: 4663)\n• Factory Contract: 0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2\n• Uniswap v4 Router: 0x8366a39cc670b4001a1121b8f6a443a643e40951\n• Target: 2.0 ETH per bonding curve -> Uniswap v4");
+      if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
+      const receipt = await tx.wait();
+
+      recentTrades.unshift({
+        type: "buy",
+        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
+        eth: inputAmount,
+        tokens: Math.floor(inputAmount * 28000000),
+        time: "Just now"
+      });
+
+      alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
+    } else {
+      // Selling tokens
+      const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserSigner);
+      const tokensWei = ethers.parseEther(inputAmount.toString());
+
+      if (actionBtn) actionBtn.innerText = "Checking Token Approval...";
+      const allowance = await tokenContract.allowance(userWallet.address, activeToken.curveAddress);
+
+      if (allowance < tokensWei) {
+        if (actionBtn) actionBtn.innerText = "Approve in MetaMask...";
+        const approveTx = await tokenContract.approve(activeToken.curveAddress, ethers.MaxUint256);
+        await approveTx.wait();
+      }
+
+      if (actionBtn) actionBtn.innerText = "Broadcasting Sell Tx...";
+      const tx = await curveContract.sellTokens(tokensWei, 0);
+
+      if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
+      const receipt = await tx.wait();
+
+      recentTrades.unshift({
+        type: "sell",
+        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
+        eth: inputAmount * 0.00000003,
+        tokens: Math.floor(inputAmount),
+        time: "Just now"
+      });
+
+      alert(`✅ Instant Sell Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
+    }
+
+    await refreshUserWalletData();
+    document.getElementById("swapInputAmount").value = "";
+    updateSwapEstimate();
+
+  } catch (err) {
+    console.error("Swap error:", err);
+    alert("Swap transaction failed or rejected: " + (err.reason || err.message || err));
+  } finally {
+    if (actionBtn) {
+      actionBtn.disabled = false;
+      actionBtn.innerText = originalBtnText;
+    }
+  }
 }
 
 // --- Logo File Upload Handling ---
@@ -1060,6 +1186,13 @@ function closeCreateModal() {
 
 async function handleCreateTokenSubmit(e) {
   e.preventDefault();
+
+  if (!userWallet.connected || !browserSigner) {
+    alert("Please connect your Web3 wallet first to deploy a coin on Robinhood Chain Mainnet!");
+    await connectWallet();
+    if (!userWallet.connected || !browserSigner) return;
+  }
+
   const name = document.getElementById("newTokenName").value.trim();
   const ticker = document.getElementById("newTokenTicker").value.trim().toUpperCase().replace("$", "");
   const desc = document.getElementById("newTokenDesc").value.trim();
@@ -1067,24 +1200,6 @@ async function handleCreateTokenSubmit(e) {
 
   const fallbackEmoji = document.getElementById("newTokenFallbackEmoji")?.value.trim();
   let finalIcon = uploadedLogoDataUrl || fallbackEmoji || "🚀";
-
-  // If connected to backend and user uploaded an image file, upload to cloud/server
-  if (isBackendConnected && uploadedLogoFileRaw) {
-    try {
-      const formData = new FormData();
-      formData.append('logo', uploadedLogoFileRaw);
-      const uploadRes = await fetch(`${BACKEND_API_URL}/upload-logo`, {
-        method: 'POST',
-        body: formData
-      });
-      const uploadData = await uploadRes.json();
-      if (uploadData.success && uploadData.logoUrl) {
-        finalIcon = uploadData.logoUrl;
-      }
-    } catch (err) {
-      console.warn("Could not upload to server, using base64 fallback:", err);
-    }
-  }
 
   const creatorTax = parseFloat(document.getElementById("creatorTaxInput").value) || 0;
   const holderTax = parseFloat(document.getElementById("holderTaxInput").value) || 0;
@@ -1099,41 +1214,164 @@ async function handleCreateTokenSubmit(e) {
     return;
   }
 
-  const newToken = {
-    id: `token_${Date.now()}`,
-    ticker: ticker,
-    name: name,
-    description: desc,
-    icon: finalIcon,
-    creator: userWallet.connected ? userWallet.address : "0xYou...Me",
-    createdAgo: "Just now",
-    realEth: devBuyEth > 0 ? devBuyEth : 0.05,
-    tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE,
-    priceEth: 0.00000001,
-    marketCapUsd: Math.round((devBuyEth + 0.05) * ethUsdPrice * 8),
-    change24h: 12.0,
-    volume24hUsd: devBuyEth * ethUsdPrice,
-    graduated: false,
-    creatorTax: creatorTax,
-    holderTax: holderTax,
-    history: [0.05, devBuyEth > 0 ? devBuyEth : 0.05]
-  };
+  if (devBuyEth > 0 && devBuyEth > userWallet.balanceEth) {
+    alert(`Insufficient ETH balance for initial dev buy!\nYour balance: ${userWallet.balanceEth.toFixed(4)} ETH\nRequired: ${devBuyEth} ETH`);
+    return;
+  }
 
-  tokens.unshift(newToken);
-  closeCreateModal();
-  selectToken(newToken.id);
-  renderTokenGrid();
-  renderKothBanner();
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn ? submitBtn.innerText : "Deploy Coin";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Confirm in MetaMask...";
+  }
 
-  alert(`🎉 Token $${ticker} deployed on Robinhood Chain!\n\nBonding Curve Target: 2.0 ETH\nAutomated Migration: Uniswap v4 Singleton\nTax: ${creatorTax}% Dev | ${holderTax}% Holders`);
+  // Upload logo to server if available
+  if (isBackendConnected && uploadedLogoFileRaw) {
+    try {
+      const formData = new FormData();
+      formData.append('logo', uploadedLogoFileRaw);
+      const uploadRes = await fetch(`${BACKEND_API_URL}/upload-logo`, {
+        method: 'POST',
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadData.success && uploadData.logoUrl) {
+        finalIcon = uploadData.logoUrl;
+      }
+    } catch (err) {
+      console.warn("Could not upload to server:", err);
+    }
+  }
+
+  try {
+    const factory = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_ABI, browserSigner);
+    const creatorTaxBps = Math.round(creatorTax * 100);
+    const holderTaxBps = Math.round(holderTax * 100);
+    const devBuyWei = devBuyEth > 0 ? ethers.parseEther(devBuyEth.toString()) : 0n;
+
+    if (submitBtn) submitBtn.innerText = "Deploying on Robinhood Chain...";
+
+    const tx = await factory.createToken(
+      name,
+      ticker,
+      finalIcon,
+      creatorTaxBps,
+      holderTaxBps,
+      { value: devBuyWei }
+    );
+
+    if (submitBtn) submitBtn.innerText = "Waiting for Confirmation...";
+    const receipt = await tx.wait();
+
+    let deployedTokenAddress = null;
+    let deployedCurveAddress = null;
+
+    // Parse TokenCreated event from receipt
+    for (const log of receipt.logs) {
+      try {
+        const parsed = factory.interface.parseLog(log);
+        if (parsed && parsed.name === 'TokenCreated') {
+          deployedTokenAddress = parsed.args.tokenAddress;
+          deployedCurveAddress = parsed.args.curveAddress;
+          break;
+        }
+      } catch (ign) {}
+    }
+
+    if (!deployedTokenAddress) {
+      try {
+        const total = await factory.totalLaunches();
+        deployedCurveAddress = await factory.allCurves(total - 1n);
+        const curveContract = new ethers.Contract(deployedCurveAddress, BONDING_CURVE_ABI, browserProvider);
+        deployedTokenAddress = await curveContract.token();
+      } catch (err) {
+        console.warn("Could not fetch addresses:", err);
+      }
+    }
+
+    const shortCreator = userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4);
+    const newToken = {
+      id: deployedTokenAddress || `token_${Date.now()}`,
+      address: deployedTokenAddress,
+      curveAddress: deployedCurveAddress,
+      ticker: ticker,
+      name: name,
+      description: desc,
+      icon: finalIcon,
+      creator: shortCreator,
+      createdAgo: "Just now",
+      realEth: devBuyEth > 0 ? devBuyEth : 0.0,
+      tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE,
+      priceEth: 0.00000001,
+      marketCapUsd: Math.round((devBuyEth + 0.05) * ethUsdPrice * 8),
+      change24h: 0.0,
+      volume24hUsd: devBuyEth * ethUsdPrice,
+      graduated: false,
+      creatorTax: creatorTax,
+      holderTax: holderTax,
+      history: [0.05, devBuyEth > 0 ? devBuyEth : 0.05]
+    };
+
+    // Save to backend database
+    if (isBackendConnected && deployedTokenAddress) {
+      try {
+        await fetch(`${BACKEND_API_URL}/tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: deployedTokenAddress,
+            curveAddress: deployedCurveAddress,
+            name: name,
+            symbol: ticker,
+            description: desc,
+            logoUrl: finalIcon,
+            creator: userWallet.address,
+            creatorTaxBps: creatorTaxBps,
+            holderTaxBps: holderTaxBps,
+            initialEth: devBuyEth
+          })
+        });
+      } catch (e) {
+        console.warn("Could not post new token to backend:", e);
+      }
+    }
+
+    tokens.unshift(newToken);
+    closeCreateModal();
+    selectToken(newToken.id);
+    renderTokenGrid();
+    renderKothBanner();
+    await refreshUserWalletData();
+
+    alert(
+      `🎉 SUCCESS! $${ticker} DEPLOYED ON ROBINHOOD CHAIN MAINNET!\n\n` +
+      `• Token: ${deployedTokenAddress || 'Created'}\n` +
+      `• Curve: ${deployedCurveAddress || 'Created'}\n` +
+      `• Tx Hash: ${receipt.hash}\n` +
+      `• Explorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}\n\n` +
+      `Graduation Target: 2.0 ETH -> Uniswap v4 Singleton`
+    );
+  } catch (err) {
+    console.error("Token creation error:", err);
+    alert("Transaction failed or rejected: " + (err.reason || err.message || err));
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = originalBtnText;
+    }
+  }
 }
 
-function selectToken(tokenId) {
+async function selectToken(tokenId) {
   const found = tokens.find(t => t.id === tokenId);
   if (found) {
     activeToken = found;
     renderTerminal();
     drawChart();
+    if (userWallet.connected) {
+      await refreshUserWalletData();
+    }
     if (window.innerWidth < 768) {
       document.getElementById("tradingTerminalSection")?.scrollIntoView({ behavior: "smooth" });
     }
@@ -1146,7 +1384,7 @@ function postComment() {
   if (!text) return;
 
   comments.unshift({
-    user: userWallet.connected ? userWallet.address : "AnonTrader",
+    user: userWallet.connected && userWallet.address ? (userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4)) : "AnonTrader",
     text: text,
     time: "Just now",
     avatar: "🚀"
@@ -1163,8 +1401,8 @@ function setPresetAmount(amount) {
 
 function setMaxAmount() {
   if (swapMode === "buy") {
-    const maxEth = Math.max(0, userWallet.balanceEth - 0.005);
-    document.getElementById("swapInputAmount").value = maxEth.toFixed(3);
+    const maxEth = Math.max(0, userWallet.balanceEth - 0.001);
+    document.getElementById("swapInputAmount").value = maxEth.toFixed(4);
   } else {
     const maxTokens = userWallet.holdings[activeToken.id] || 0;
     document.getElementById("swapInputAmount").value = maxTokens;

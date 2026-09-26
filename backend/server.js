@@ -152,6 +152,29 @@ app.get('/api/tokens', async (req, res) => {
   }
 });
 
+// 3b. Register / Save Newly Deployed Token
+app.post('/api/tokens', async (req, res) => {
+  try {
+    const { id, curveAddress, name, symbol, description, logoUrl, creator, creatorTaxBps, holderTaxBps, initialEth = 0 } = req.body;
+    if (!id || !name || !symbol) {
+      return res.status(400).json({ error: 'Missing required token fields' });
+    }
+    await query(
+      `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps, volume_24h_usd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET curve_address = excluded.curve_address, real_eth = excluded.real_eth`,
+      [id, curveAddress || '', name, symbol, description || '', logoUrl || '🚀', creator || '', parseFloat(initialEth) || 0, parseInt(creatorTaxBps) || 0, parseInt(holderTaxBps) || 0, (parseFloat(initialEth) || 0) * 4200]
+    );
+    broadcast({
+      type: 'TOKEN_CREATED',
+      token: { id, curveAddress, name, symbol, description, logoUrl, creator, realEth: initialEth }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. Get Single Token Details
 app.get('/api/tokens/:id', async (req, res) => {
   try {

@@ -1,5 +1,5 @@
 /**
- * Robinhood Chain Testnet Event Indexer
+ * Robinhood Chain Mainnet Event Indexer
  * Connects via viem, parses on-chain logs, stores in Database, and triggers WebSockets.
  */
 
@@ -148,7 +148,7 @@ async function handleGraduation(log, broadcast) {
  * Start Live Blockchain Listener
  */
 function startIndexer(broadcastFn) {
-  console.log(`📡 [Indexer] Connecting to Robinhood Chain Testnet RPC (${RPC_URL})...`);
+  console.log(`📡 [Indexer] Connecting to Robinhood Chain Mainnet RPC (${RPC_URL})...`);
 
   if (FACTORY_ADDRESS !== '0x0000000000000000000000000000000000000000') {
     // Watch Token Factory
