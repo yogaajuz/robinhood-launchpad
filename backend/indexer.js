@@ -8,7 +8,7 @@ const { query } = require('./db.js');
 require('dotenv').config();
 
 const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
-const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0x84D44D6ee5297e3073cf536aBB8d3978D7cc9Ca2';
+const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0xC1C1E61a2b8b604551ba3770bc6248707fBf1f58';
 
 const client = createPublicClient({
   transport: http(RPC_URL)
