@@ -4,14 +4,24 @@
  * 2.0 ETH Bonding Curve with Uniswap v4 Migration, Logo Upload, and Dynamic Cloud Hosting Sync
  */
 
-// --- Network & AMM Constants ---
-const RH_CHAIN_CONFIG = {
+const RH_MAINNET_CONFIG = {
+  chainId: '0x1237', // 4663 in hex
+  chainName: 'Robinhood Chain Mainnet',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
+  blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
+};
+
+const RH_TESTNET_CONFIG = {
   chainId: '0xb626', // 46630 in hex
   chainName: 'Robinhood Chain Testnet',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: ['https://rpc.testnet.chain.robinhood.com'],
   blockExplorerUrls: ['https://explorer.testnet.chain.robinhood.com']
 };
+
+// Default to Robinhood Chain Mainnet (4663)
+let RH_CHAIN_CONFIG = RH_MAINNET_CONFIG;
 
 const AMM_PARAMS = {
   TOTAL_SUPPLY: 1_000_000_000,

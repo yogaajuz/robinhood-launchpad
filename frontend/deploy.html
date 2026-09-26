@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deploy Smart Contracts - Robinhood Chain Mainnet</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b0e14; color: #ffffff; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8 flex flex-col items-center justify-center">
+
+  <div class="max-w-2xl w-full bg-[#121721] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+    <!-- Neon Robinhood glow effect -->
+    <div class="absolute -top-24 -right-24 w-60 h-60 bg-[#00C805]/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="flex items-center justify-between border-b border-gray-800 pb-5 mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-[#00C805]/20 flex items-center justify-center text-xl">🏹</div>
+        <div>
+          <h1 class="text-xl font-bold text-white flex items-center gap-2">
+            Mainnet Contract Deployer
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00C805]/20 text-[#00C805]">Chain 4663</span>
+          </h1>
+          <p class="text-xs text-gray-400">Robinhood Chain (Arbitrum Orbit L2) • Native ETH Gas</p>
+        </div>
+      </div>
+      <a href="/" class="text-xs text-gray-400 hover:text-white transition">← Back to App</a>
+    </div>
+
+    <!-- Network & Wallet Info Box -->
+    <div class="bg-[#181f2c] border border-gray-800 rounded-2xl p-5 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="text-xs text-gray-400 font-semibold mb-1">DEPLOYER WALLET</div>
+          <div id="walletAddress" class="text-sm font-mono font-bold text-white">Not Connected</div>
+          <div id="walletBalance" class="text-xs font-mono text-gray-400 mt-0.5">-</div>
+        </div>
+        <div class="flex gap-2">
+          <button id="connectWalletBtn" onclick="connectWallet()" class="px-5 py-2.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm transition shadow-lg shadow-[#00C805]/20 cursor-pointer">
+            Connect Wallet
+          </button>
+          <button id="switchNetworkBtn" onclick="switchToRobinhoodMainnet()" class="hidden px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition cursor-pointer">
+            Switch to Mainnet (4663)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Parameters -->
+    <div class="space-y-4 mb-6">
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Uniswap v4 PoolManager (Robinhood Mainnet)</label>
+        <input id="poolManagerInput" value="0x8366a39cc670b4001a1121b8f6a443a643e40951" class="w-full bg-[#181f2c] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#00C805]">
+        <span class="text-[10px] text-gray-500">Official verified Singleton PoolManager on Robinhood Chain Mainnet</span>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Protocol Fee Recipient Address</label>
+        <input id="feeRecipientInput" placeholder="Connect wallet to auto-fill" class="w-full bg-[#181f2c] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#00C805]">
+        <span class="text-[10px] text-gray-500">Receives the 1.00% protocol trading fees from all bonding curves</span>
+      </div>
+
+      <div class="p-3.5 bg-[#181f2c]/50 border border-gray-800 rounded-xl text-xs space-y-1.5 text-gray-300">
+        <div class="font-bold text-white flex items-center gap-1.5">
+          <span>⚙️</span> Pre-Configured Bonding Curve Parameters:
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span>Graduation Target:</span>
+          <span class="font-bold text-purple-400 font-mono">2.00 ETH</span>
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span>DEX Migration:</span>
+          <span class="font-bold text-[#00C805] font-mono">Uniswap v4 Singleton + Burned LP</span>
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span>Taxes Supported:</span>
+          <span class="font-bold text-white font-mono">Creator Royalty (0-5%) + Holder Reflection (0-5%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Button -->
+    <button id="deployBtn" onclick="deployContracts()" disabled class="w-full py-3.5 rounded-2xl bg-gray-800 text-gray-500 font-bold text-sm transition flex items-center justify-center gap-2 cursor-not-allowed">
+      <span>🚀 Deploy Contracts to Robinhood Mainnet</span>
+    </button>
+
+    <!-- Progress / Status Log -->
+    <div id="statusSection" class="hidden mt-6 pt-5 border-t border-gray-800">
+      <div class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Deployment Status</div>
+      <div id="statusLog" class="p-4 bg-[#0a0d14] rounded-xl border border-gray-800 text-xs font-mono space-y-2 text-gray-300 max-h-60 overflow-y-auto"></div>
+    </div>
+
+    <!-- Results Box -->
+    <div id="resultsBox" class="hidden mt-6 p-5 bg-[#00C805]/10 border border-[#00C805]/40 rounded-2xl">
+      <div class="text-sm font-bold text-[#00C805] flex items-center gap-2 mb-3">
+        <span>🎉</span> Contracts Deployed Successfully!
+      </div>
+      <div class="space-y-2 text-xs font-mono">
+        <div>
+          <span class="text-gray-400">v4 Router:</span>
+          <a id="routerLink" target="_blank" class="text-white hover:underline block truncate font-bold"></a>
+        </div>
+        <div>
+          <span class="text-gray-400">Token Factory:</span>
+          <a id="factoryLink" target="_blank" class="text-[#00C805] hover:underline block truncate font-bold"></a>
+        </div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-gray-800 flex justify-between items-center">
+        <span class="text-[11px] text-gray-400">Addresses automatically saved to server!</span>
+        <a href="/" class="px-4 py-2 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs transition">Open Launchpad</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RH_MAINNET = {
+      chainId: '0x1237', // 4663 in hex
+      chainName: 'Robinhood Chain Mainnet',
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
+      blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
+    };
+
+    let provider = null;
+    let signer = null;
+    let userAddress = null;
+    let artifacts = null;
+
+    async function init() {
+      try {
+        const res = await fetch('/contracts/artifacts/all_artifacts.json');
+        if (res.ok) {
+          artifacts = await res.json();
+        }
+      } catch (e) {
+        console.warn('Could not fetch artifacts:', e);
+      }
+    }
+    init();
+
+    async function connectWallet() {
+      if (!window.ethereum) {
+        alert("Please install MetaMask, Robinhood Wallet, or another Web3 browser wallet.");
+        return;
+      }
+
+      try {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        const accounts = await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        userAddress = accounts[0];
+
+        document.getElementById("walletAddress").innerText = `${userAddress.slice(0, 8)}...${userAddress.slice(-6)}`;
+        document.getElementById("feeRecipientInput").value = userAddress;
+
+        const balance = await provider.getBalance(userAddress);
+        document.getElementById("walletBalance").innerText = `Balance: ${ethers.formatEther(balance)} ETH`;
+
+        const network = await provider.getNetwork();
+        if (Number(network.chainId) !== 4663) {
+          document.getElementById("switchNetworkBtn").classList.remove("hidden");
+          document.getElementById("connectWalletBtn").classList.add("hidden");
+          addLog("⚠️ Connected to wrong network. Please switch to Robinhood Chain Mainnet (Chain ID 4663).", "text-yellow-400");
+        } else {
+          enableDeploy();
+        }
+      } catch (err) {
+        alert("Wallet connection failed: " + err.message);
+      }
+    }
+
+    async function switchToRobinhoodMainnet() {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: RH_MAINNET.chainId }],
+        });
+        location.reload();
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [RH_MAINNET],
+            });
+            location.reload();
+          } catch (addError) {
+            alert("Could not add Robinhood Chain: " + addError.message);
+          }
+        }
+      }
+    }
+
+    function enableDeploy() {
+      const btn = document.getElementById("deployBtn");
+      btn.disabled = false;
+      btn.className = "w-full py-3.5 rounded-2xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm transition shadow-lg shadow-[#00C805]/20 cursor-pointer flex items-center justify-center gap-2";
+      document.getElementById("switchNetworkBtn").classList.add("hidden");
+      document.getElementById("connectWalletBtn").innerText = "Connected";
+      document.getElementById("connectWalletBtn").classList.remove("hidden");
+    }
+
+    function addLog(msg, colorClass = "text-gray-300") {
+      const section = document.getElementById("statusSection");
+      section.classList.remove("hidden");
+      const log = document.getElementById("statusLog");
+      const p = document.createElement("div");
+      p.className = colorClass;
+      p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.appendChild(p);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function deployContracts() {
+      if (!artifacts) {
+        alert("Contract artifacts are still loading. Please wait 2 seconds.");
+        return;
+      }
+
+      const poolManager = document.getElementById("poolManagerInput").value.trim();
+      const feeRecipient = document.getElementById("feeRecipientInput").value.trim() || userAddress;
+
+      if (!ethers.isAddress(poolManager)) {
+        alert("Invalid Uniswap v4 PoolManager address");
+        return;
+      }
+      if (!ethers.isAddress(feeRecipient)) {
+        alert("Invalid Fee Recipient address");
+        return;
+      }
+
+      const deployBtn = document.getElementById("deployBtn");
+      deployBtn.disabled = true;
+      deployBtn.innerText = "⏳ Deploying... Please confirm in wallet";
+
+      try {
+        addLog("🚀 Step 1: Deploying Uniswap v4 Migration Router...", "text-blue-400 font-bold");
+        addLog(`PoolManager: ${poolManager}`);
+
+        const routerFactory = new ethers.ContractFactory(
+          artifacts.RobinhoodUniswapV4MigrationRouter.abi,
+          artifacts.RobinhoodUniswapV4MigrationRouter.bytecode,
+          signer
+        );
+
+        const routerContract = await routerFactory.deploy(poolManager);
+        addLog(`Transaction submitted: ${routerContract.deploymentTransaction().hash}`, "text-gray-400");
+        addLog("Waiting for block confirmation on Robinhood Chain...");
+
+        await routerContract.waitForDeployment();
+        const routerAddress = await routerContract.getAddress();
+        addLog(`✅ Uniswap v4 Router deployed at: ${routerAddress}`, "text-[#00C805] font-bold");
+
+        addLog("\n🚀 Step 2: Deploying RobinhoodTokenFactory...", "text-purple-400 font-bold");
+        addLog(`Fee Recipient: ${feeRecipient}`);
+        addLog(`Migration Router: ${routerAddress}`);
+
+        const tokenFactoryFactory = new ethers.ContractFactory(
+          artifacts.RobinhoodTokenFactory.abi,
+          artifacts.RobinhoodTokenFactory.bytecode,
+          signer
+        );
+
+        const factoryContract = await tokenFactoryFactory.deploy(feeRecipient, routerAddress);
+        addLog(`Transaction submitted: ${factoryContract.deploymentTransaction().hash}`, "text-gray-400");
+        addLog("Waiting for block confirmation...");
+
+        await factoryContract.waitForDeployment();
+        const factoryAddress = await factoryContract.getAddress();
+        addLog(`✅ Robinhood Token Factory deployed at: ${factoryAddress}`, "text-[#00C805] font-bold");
+
+        // Notify server
+        try {
+          await fetch('/api/config/contracts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ factoryAddress, routerAddress, chainId: 4663 })
+          });
+          addLog("✅ Configuration saved to backend and database.", "text-blue-400");
+        } catch (e) {
+          console.warn("Could not save to backend:", e);
+        }
+
+        // Show Results
+        document.getElementById("resultsBox").classList.remove("hidden");
+        document.getElementById("routerLink").innerText = routerAddress;
+        document.getElementById("routerLink").href = `https://robinhoodchain.blockscout.com/address/${routerAddress}`;
+        document.getElementById("factoryLink").innerText = factoryAddress;
+        document.getElementById("factoryLink").href = `https://robinhoodchain.blockscout.com/address/${factoryAddress}`;
+
+        deployBtn.innerText = "✅ Deployed to Mainnet";
+        deployBtn.className = "w-full py-3.5 rounded-2xl bg-gray-800 text-gray-400 font-bold text-sm";
+      } catch (err) {
+        console.error(err);
+        addLog(`❌ Deployment Error: ${err.message}`, "text-red-400 font-bold");
+        deployBtn.disabled = false;
+        deployBtn.innerText = "Try Deploying Again";
+      }
+    }
+  </script>
+</body>
+</html>

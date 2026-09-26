@@ -1,0 +1,36 @@
+{
+  "contractName": "IUniswapV4MigrationRouter",
+  "sourceFile": "RobinhoodBondingCurve.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "ethAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "graduateAndMigrate",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "poolId",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": ""
+}

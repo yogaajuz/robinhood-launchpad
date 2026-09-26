@@ -36,6 +36,12 @@ if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir));
 }
 
+// Serve compiled contract artifacts
+const contractsDir = path.join(__dirname, '../contracts');
+if (fs.existsSync(contractsDir)) {
+  app.use('/contracts', express.static(contractsDir));
+}
+
 // Multer storage for token logo files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -64,14 +70,48 @@ wss.on('connection', (ws) => {
 
 // --- REST API Endpoints ---
 
-// 1. Health check & status for Hosting Provider Liveness Pings
+// 1. Health check & Network Config
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    network: 'Robinhood Chain Testnet',
-    chainId: 46630,
+    network: process.env.CHAIN_ID === '4663' ? 'Robinhood Chain Mainnet' : 'Robinhood Chain Testnet',
+    chainId: parseInt(process.env.CHAIN_ID || '4663'),
+    factoryAddress: process.env.FACTORY_ADDRESS || process.env.FACTORY_CONTRACT_ADDRESS || null,
+    routerAddress: process.env.ROUTER_V4_ADDRESS || process.env.UNISWAP_V4_ROUTER_ADDRESS || null,
     timestamp: new Date().toISOString()
   });
+});
+
+// Save deployed contracts from Web Deployer
+app.post('/api/config/contracts', (req, res) => {
+  const { factoryAddress, routerAddress, chainId = 4663 } = req.body;
+  if (!factoryAddress || !routerAddress) {
+    return res.status(400).json({ error: 'Missing factoryAddress or routerAddress' });
+  }
+
+  process.env.FACTORY_ADDRESS = factoryAddress;
+  process.env.FACTORY_CONTRACT_ADDRESS = factoryAddress;
+  process.env.ROUTER_V4_ADDRESS = routerAddress;
+  process.env.UNISWAP_V4_ROUTER_ADDRESS = routerAddress;
+  process.env.CHAIN_ID = chainId.toString();
+
+  // Persist to .env files
+  const rootEnv = path.join(__dirname, '../.env');
+  const backendEnv = path.join(__dirname, '.env');
+  [rootEnv, backendEnv].forEach(envFile => {
+    if (fs.existsSync(envFile)) {
+      let content = fs.readFileSync(envFile, 'utf8');
+      content = content.replace(/CHAIN_ID=.*/g, `CHAIN_ID=${chainId}`);
+      content = content.replace(/FACTORY_ADDRESS=.*/g, `FACTORY_ADDRESS=${factoryAddress}`);
+      content = content.replace(/ROUTER_V4_ADDRESS=.*/g, `ROUTER_V4_ADDRESS=${routerAddress}`);
+      content = content.replace(/FACTORY_CONTRACT_ADDRESS=.*/g, `FACTORY_CONTRACT_ADDRESS=${factoryAddress}`);
+      content = content.replace(/UNISWAP_V4_ROUTER_ADDRESS=.*/g, `UNISWAP_V4_ROUTER_ADDRESS=${routerAddress}`);
+      fs.writeFileSync(envFile, content, 'utf8');
+    }
+  });
+
+  broadcast({ type: 'CONFIG_UPDATED', factoryAddress, routerAddress, chainId });
+  res.json({ success: true, factoryAddress, routerAddress, chainId });
 });
 
 // 2. Upload Logo File

@@ -4,11 +4,10 @@
   "description": "Full-stack Fair Launchpad for Robinhood Chain with 2.0 ETH Graduation into Uniswap v4",
   "main": "backend/server.js",
   "scripts": {
-    "postinstall": "npm --prefix backend install",
     "start": "node backend/server.js",
-    "backend": "npm --prefix backend start",
-    "indexer": "npm --prefix backend run indexer",
-    "dev": "npm --prefix backend run dev"
+    "backend": "node backend/server.js",
+    "indexer": "node backend/indexer.js",
+    "dev": "node backend/server.js"
   },
   "keywords": [
     "robinhood-chain",
