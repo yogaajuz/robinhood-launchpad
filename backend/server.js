@@ -31,6 +31,12 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use('/uploads', express.static(uploadDir));
 
+// Serve static brand assets (logo, icons, etc.)
+const assetsDir = path.join(__dirname, '../assets');
+if (fs.existsSync(assetsDir)) {
+  app.use('/assets', express.static(assetsDir));
+}
+
 // Monolith Hosting Mode: If frontend directory exists, serve frontend static files on same domain!
 const frontendDir = path.join(__dirname, '../frontend');
 if (fs.existsSync(frontendDir)) {
