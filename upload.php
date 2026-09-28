@@ -1,7 +1,7 @@
 <?php
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -54,16 +54,67 @@ $safeTicker = isset($_POST['ticker']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', str
 $filename = 'logo_' . ($safeTicker ? $safeTicker . '_' : '') . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
 $targetPath = $targetDir . '/' . $filename;
 
-if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
-    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
-    $publicUrl = $host ? ($protocol . $host . '/uploads/' . $filename) : ('/uploads/' . $filename);
-    echo json_encode([
-        'success' => true,
-        'logoUrl' => $publicUrl,
-        'relativePath' => '/uploads/' . $filename,
-        'filename' => $filename
-    ]);
-} else {
-    echo json_encode(['success' => false, 'error' => 'Failed to save uploaded file']);
+if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+    echo json_encode(['success' => false, 'error' => 'Failed to save local file']);
+    exit;
 }
+
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+$localUrl = $host ? ($protocol . $host . '/uploads/' . $filename) : ('/uploads/' . $filename);
+
+// --- Optional: Auto-Pin to Decentralized IPFS via Pinata ---
+// To enable permanent IPFS pinning, paste your Pinata JWT here or set the PINATA_JWT environment variable.
+// Free Pinata signup at: https://app.pinata.cloud
+$pinataJwt = getenv('PINATA_JWT') ?: '';
+
+$ipfsHash = null;
+$ipfsGatewayUrl = null;
+
+if (!empty($pinataJwt) && function_exists('curl_init')) {
+    $ch = curl_init();
+    $cfile = new CURLFile($targetPath, $mime, $filename);
+    $postData = [
+        'file' => $cfile,
+        'pinataMetadata' => json_encode([
+            'name' => $filename,
+            'keyvalues' => ['ticker' => $safeTicker, 'platform' => 'robinhood-launchpad']
+        ]),
+        'pinataOptions' => json_encode(['cidVersion' => 1])
+    ];
+
+    curl_setopt($ch, CURLOPT_URL, 'https://api.pinata.cloud/pinning/pinFileToIPFS');
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $pinataJwt
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $json = json_decode($response, true);
+        if (isset($json['IpfsHash'])) {
+            $ipfsHash = $json['IpfsHash'];
+            $ipfsGatewayUrl = 'https://gateway.pinata.cloud/ipfs/' . $ipfsHash;
+        }
+    }
+}
+
+// If IPFS upload succeeded, use the decentralized IPFS URL as primary; otherwise use local cPanel URL
+$primaryUrl = $ipfsGatewayUrl ? $ipfsGatewayUrl : $localUrl;
+
+echo json_encode([
+    'success' => true,
+    'logoUrl' => $primaryUrl,
+    'storage' => $ipfsGatewayUrl ? 'ipfs' : 'local',
+    'ipfsHash' => $ipfsHash,
+    'ipfsUrl' => $ipfsGatewayUrl,
+    'localUrl' => $localUrl,
+    'relativePath' => '/uploads/' . $filename,
+    'filename' => $filename
+]);

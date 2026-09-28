@@ -115,13 +115,57 @@ app.post('/api/config/contracts', (req, res) => {
   res.json({ success: true, factoryAddress, routerAddress, chainId });
 });
 
-// 2. Upload Logo File
-app.post('/api/upload-logo', upload.single('logo'), (req, res) => {
+// 2. Upload Logo File (with optional auto-pinning to IPFS via Pinata)
+app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded' });
   }
-  const logoUrl = `/uploads/${req.file.filename}`;
-  res.json({ success: true, logoUrl });
+
+  const localUrl = `/uploads/${req.file.filename}`;
+  let primaryUrl = localUrl;
+  let ipfsHash = null;
+
+  const pinataJwt = process.env.PINATA_JWT;
+  if (pinataJwt) {
+    try {
+      const fs = require('fs');
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const blob = new Blob([fileBuffer], { type: req.file.mimetype || 'image/png' });
+      const pinataFormData = new FormData();
+      pinataFormData.append('file', blob, req.file.filename);
+      pinataFormData.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
+      pinataFormData.append('pinataMetadata', JSON.stringify({
+        name: req.file.filename,
+        keyvalues: { platform: 'robinhood-launchpad' }
+      }));
+
+      const pinRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${pinataJwt}` },
+        body: pinataFormData
+      });
+
+      if (pinRes.ok) {
+        const pinData = await pinRes.json();
+        if (pinData.IpfsHash) {
+          ipfsHash = pinData.IpfsHash;
+          primaryUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+          console.log(`📡 [IPFS] Logo successfully pinned to IPFS: ${ipfsHash}`);
+        }
+      }
+    } catch (pinErr) {
+      console.warn("Could not pin to IPFS, using local copy:", pinErr.message);
+    }
+  }
+
+  res.json({
+    success: true,
+    logoUrl: primaryUrl,
+    storage: ipfsHash ? 'ipfs' : 'local',
+    ipfsHash,
+    ipfsUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+    localUrl
+  });
 });
 
 // 3. Get All Tokens (with Sorting, Search & Filter)

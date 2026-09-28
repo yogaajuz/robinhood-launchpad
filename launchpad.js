@@ -242,6 +242,47 @@ function getFallbackEmoji(ticker = "", name = "") {
   return "🪙";
 }
 
+// --- IPFS Decentralized Storage Configuration ---
+// Free Pinata Signup: https://app.pinata.cloud/developers/api-keys
+// If you want direct browser IPFS pinning without server, paste your Pinata JWT here.
+// Or leave empty and upload.php / server.js will handle IPFS pinning on the server!
+const IPFS_CONFIG = {
+  pinataJwt: "", // Optional: Admin Pinata JWT for direct browser-to-IPFS pinning
+  gateway: "https://gateway.pinata.cloud/ipfs/"
+};
+
+async function uploadFileToPinataIpfs(file, ticker = "coin") {
+  if (!IPFS_CONFIG.pinataJwt) return null;
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("pinataMetadata", JSON.stringify({
+      name: `logo_${ticker.toLowerCase()}_${Date.now()}`,
+      keyvalues: { platform: "robinhood-launchpad" }
+    }));
+    formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+
+    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${IPFS_CONFIG.pinataJwt}`
+      },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.IpfsHash) {
+        console.log("🌐 [IPFS] Direct browser upload pinned successfully:", data.IpfsHash);
+        return `${IPFS_CONFIG.gateway}${data.IpfsHash}`;
+      }
+    }
+  } catch (err) {
+    console.warn("Direct IPFS upload error:", err);
+  }
+  return null;
+}
+
 // --- Helper: Render Token Icon with Instant Zero-Loading Dual Layer ---
 function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = null) {
   const ticker = tokenObj?.ticker || "";
@@ -252,11 +293,12 @@ function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = 
     return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${fallback}</span>`;
   }
 
-  // Check if icon is an image URL, path, or base64 data URL
+  // Check if icon is an image URL, path, IPFS URI, or base64 data URL
   const isImage = typeof icon === "string" && (
     icon.startsWith("data:image/") ||
     icon.startsWith("http://") ||
     icon.startsWith("https://") ||
+    icon.startsWith("ipfs://") ||
     icon.startsWith("/uploads/") ||
     icon.startsWith("uploads/") ||
     /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(icon)
@@ -264,6 +306,10 @@ function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = 
 
   if (isImage) {
     let fullUrl = icon;
+    // Map IPFS protocol URI to public gateway
+    if (fullUrl.startsWith("ipfs://")) {
+      fullUrl = fullUrl.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/");
+    }
     // Map production host uploads to local if running on localhost
     if (isLocalhost && fullUrl.includes("web.hotelsbazzar.com/uploads/")) {
       fullUrl = fullUrl.replace(/https?:\/\/web\.hotelsbazzar\.com\/uploads\//, "/uploads/");
@@ -1534,27 +1580,43 @@ async function handleCreateTokenSubmit(e) {
     submitBtn.innerText = "Confirm in MetaMask...";
   }
 
-  // Handle Logo Upload (cPanel PHP, Node backend, or Canvas Thumbnail)
+  // Handle Logo Upload (Direct IPFS, cPanel PHP with IPFS, Node backend with IPFS, or Canvas Thumbnail)
   if (uploadedLogoFileRaw && !directLogoUrl) {
-    if (submitBtn) submitBtn.innerText = "Uploading Coin Logo...";
+    if (submitBtn) submitBtn.innerText = "Storing Coin Logo on IPFS...";
     let uploadSuccess = false;
 
-    // 1. Try Namecheap cPanel native upload.php
-    try {
-      const phpFormData = new FormData();
-      phpFormData.append('logo', uploadedLogoFileRaw);
-      phpFormData.append('ticker', ticker);
-      const phpRes = await fetch('/upload.php', { method: 'POST', body: phpFormData });
-      if (phpRes.ok) {
-        const phpData = await phpRes.json();
-        if (phpData.success && phpData.logoUrl) {
-          finalIcon = phpData.logoUrl;
+    // 0. Try direct browser Pinata IPFS upload (if configured in frontend)
+    if (IPFS_CONFIG.pinataJwt) {
+      try {
+        const ipfsDirectUrl = await uploadFileToPinataIpfs(uploadedLogoFileRaw, ticker);
+        if (ipfsDirectUrl) {
+          finalIcon = ipfsDirectUrl;
           uploadSuccess = true;
-          console.log("✅ Logo uploaded via upload.php:", finalIcon);
+          console.log("🌐 [IPFS] Logo pinned directly to IPFS:", finalIcon);
         }
+      } catch (errDirectIpfs) {
+        console.warn("Direct IPFS upload error:", errDirectIpfs);
       }
-    } catch (errPhp) {
-      // Quietly fall through
+    }
+
+    // 1. Try Namecheap cPanel native upload.php (auto-pins to IPFS if server key configured, + local backup)
+    if (!uploadSuccess) {
+      try {
+        const phpFormData = new FormData();
+        phpFormData.append('logo', uploadedLogoFileRaw);
+        phpFormData.append('ticker', ticker);
+        const phpRes = await fetch('/upload.php', { method: 'POST', body: phpFormData });
+        if (phpRes.ok) {
+          const phpData = await phpRes.json();
+          if (phpData.success && phpData.logoUrl) {
+            finalIcon = phpData.logoUrl;
+            uploadSuccess = true;
+            console.log(`✅ Logo stored via upload.php (Storage: ${phpData.storage || 'local'}):`, finalIcon);
+          }
+        }
+      } catch (errPhp) {
+        // Quietly fall through
+      }
     }
 
     // 2. Try Node.js backend if connected
@@ -1571,7 +1633,7 @@ async function handleCreateTokenSubmit(e) {
         if (uploadData.success && uploadData.logoUrl) {
           finalIcon = uploadData.logoUrl;
           uploadSuccess = true;
-          console.log("✅ Logo uploaded via Node.js backend:", finalIcon);
+          console.log(`✅ Logo stored via Node.js backend (Storage: ${uploadData.storage || 'local'}):`, finalIcon);
         }
       } catch (err) {
         console.warn("Could not upload to backend:", err);
