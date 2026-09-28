@@ -108,6 +108,8 @@ let tokens = [
     description: "Newly launched on Robinhood Chain",
     icon: "https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru",
     creator: "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+    rawCreator: "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+    creatorAddress: "0xe14482e488a7cee514fbb7ac99d323a9070e90c8",
     createdAgo: "Just now",
     realEth: 0.0,
     tokensLeft: 800000000,
@@ -134,6 +136,8 @@ let tokens = [
     description: "Newly launched on Robinhood Chain",
     icon: "https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru",
     creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    rawCreator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    creatorAddress: "0x3b2cb0805eeeb947ae2649a5534065049d16bcb9",
     createdAgo: "1d ago",
     realEth: 0.000096,
     tokensLeft: 799846400,
@@ -160,6 +164,8 @@ let tokens = [
     description: "Newly launched on Robinhood Chain",
     icon: "https://gateway.pinata.cloud/ipfs/bafybeih3crzhlp5xpywjo5vetg2nhomvxcngr2o2vhepuizw7ks3a34dsi",
     creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    rawCreator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    creatorAddress: "0x3b2cb0805eeeb947ae2649a5534065049d16bcb9",
     createdAgo: "2d ago",
     realEth: 0.0,
     tokensLeft: 800000000,
@@ -623,6 +629,8 @@ async function fetchOnChainTokens() {
           description: `Verified bonding curve on Robinhood Chain Mainnet`,
           icon: tokenIcon,
           creator: creator.slice(0, 6) + '...' + creator.slice(-4),
+          rawCreator: creator,
+          creatorAddress: creator.toLowerCase(),
           createdAgo: i === count - 1 ? 'Just now' : `${count - i}h ago`,
           createdAtTimestamp: Date.now() - (count - 1 - i) * 600000,
           launchIndex: i,
@@ -719,6 +727,8 @@ async function fetchTokensFromDb() {
         description: dbTok.description,
         icon: dbTok.logo_url || DEFAULT_TOKEN_LOGO,
         creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
+        rawCreator: dbTok.creator || null,
+        creatorAddress: dbTok.creator ? dbTok.creator.toLowerCase() : null,
         realEth: parseFloat(dbTok.real_eth) || 0.0,
         tokensLeft: (function() {
           let tl = parseFloat(dbTok.tokens_left) || 800000000;
@@ -1083,6 +1093,53 @@ function handleHashRouting() {
 }
 
 // --- User Profile & Token Holdings Rendering ---
+
+function isTokenCreatedByUser(token, userAddr) {
+  if (!token || !userAddr) return false;
+  const cleanUser = userAddr.toLowerCase();
+
+  // 1. Direct creatorAddress or rawCreator match
+  if (token.creatorAddress && token.creatorAddress.toLowerCase() === cleanUser) return true;
+  if (token.rawCreator && token.rawCreator.toLowerCase() === cleanUser) return true;
+
+  // 2. Short address match e.g. "0x1234...abcd" or full address in creator
+  if (token.creator && typeof token.creator === 'string') {
+    const creatorLower = token.creator.toLowerCase();
+    if (creatorLower === cleanUser) return true;
+    const shortUser = (cleanUser.slice(0, 6) + '...' + cleanUser.slice(-4)).toLowerCase();
+    if (creatorLower === shortUser) return true;
+  }
+
+  // 3. LocalStorage user launched registry
+  try {
+    const registryKey = `rh_user_launched_${cleanUser}`;
+    const launchedIds = JSON.parse(localStorage.getItem(registryKey) || '[]');
+    if (Array.isArray(launchedIds)) {
+      const tId = (token.id || '').toLowerCase();
+      const tAddr = (token.address || '').toLowerCase();
+      const tCurve = (token.curveAddress || '').toLowerCase();
+      if (launchedIds.some(id => id.toLowerCase() === tId || id.toLowerCase() === tAddr || id.toLowerCase() === tCurve)) {
+        return true;
+      }
+    }
+  } catch (e) {}
+
+  return false;
+}
+
+function copyTokenShareLinkFor(tokenId, tokenTicker) {
+  const url = `${window.location.origin}${window.location.pathname}#token=${tokenId}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert(`🔗 Share link for $${tokenTicker} copied to clipboard!\n\n${url}`);
+    }).catch(() => {
+      prompt("Copy token link:", url);
+    });
+  } else {
+    prompt("Copy token link:", url);
+  }
+}
+
 function renderUserProfile() {
   const container = document.getElementById("profileContainer");
   if (!container) return;
@@ -1118,6 +1175,9 @@ function renderUserProfile() {
 
   // Filter tokens where user holds a balance > 0
   let ownedTokens = tokens.filter(t => (userWallet.holdings[t.id] || 0) > 0);
+
+  // Filter tokens launched / created by this user
+  const launchedTokens = tokens.filter(t => isTokenCreatedByUser(t, userWallet.address));
 
   let totalTokenValueUsd = 0;
   let totalDividendsEth = 0;
@@ -1218,19 +1278,148 @@ function renderUserProfile() {
           </div>
         </div>
 
-        <!-- Metric 4: Assets Held -->
+        <!-- Metric 4: Coins Launched -->
         <div class="rounded-2xl bg-[#121721]/80 border border-gray-800 p-4">
           <div class="text-[11px] uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-            <span>🪙</span> <span>Coins Held</span>
+            <span>🚀</span> <span>Coins Launched</span>
           </div>
           <div class="text-base sm:text-xl font-black font-mono text-white mt-1">
-            ${ownedTokens.length} Assets
+            ${launchedTokens.length} Created
           </div>
-          <div class="text-xs text-gray-400 font-mono mt-0.5">
-            On Robinhood Protocol
+          <div class="text-xs text-[#00C805] font-mono mt-0.5">
+            ${ownedTokens.length} Assets Held
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Coins Launched by You Section -->
+    <div class="mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🚀</span>
+              <span>Coins Launched by You</span>
+            </h3>
+            <span class="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[#00C805]/15 text-[#00C805] border border-[#00C805]/30">
+              ${launchedTokens.length} ${launchedTokens.length === 1 ? 'Coin' : 'Coins'}
+            </span>
+          </div>
+          <p class="text-xs text-gray-400 mt-0.5">Tokens created and deployed by your connected wallet on Robinhood Chain Mainnet</p>
+        </div>
+        <button onclick="openCreateModal()" class="px-3.5 py-1.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs shadow-md shadow-[#00C805]/20 flex items-center gap-1.5 transition cursor-pointer">
+          <span>+</span> <span>Launch New Coin</span>
+        </button>
+      </div>
+
+      ${launchedTokens.length === 0 ? `
+        <!-- Empty State for Launched Coins -->
+        <div class="rounded-2xl bg-[#181f2c]/70 border border-dashed border-[#242e42] p-8 text-center">
+          <div class="text-4xl mb-3">🚀</div>
+          <h4 class="text-base font-bold text-white">You Haven't Launched Any Coins Yet</h4>
+          <p class="text-xs text-gray-400 max-w-md mx-auto mt-1 leading-relaxed">
+            Deploy your own meme coin on Robinhood Chain in under 30 seconds! Set custom Dev & Holder taxes to earn trading fees on every swap.
+          </p>
+          <button onclick="openCreateModal()" class="mt-4 px-5 py-2.5 bg-gradient-to-r from-[#00C805] to-emerald-400 hover:opacity-90 text-black font-bold text-xs rounded-xl shadow-lg shadow-[#00C805]/25 transition cursor-pointer flex items-center gap-2 mx-auto">
+            <span>🚀</span> <span>Launch Your First Coin Now</span>
+          </button>
+        </div>
+      ` : `
+        <!-- Launched Coins List -->
+        <div class="grid grid-cols-1 gap-4">
+          ${launchedTokens.map(t => {
+            const math = getCurveMath(t.realEth);
+            const remainingEth = Math.max(0, AMM_PARAMS.GRADUATION_ETH_TARGET - t.realEth);
+            const isGraduated = t.graduated || t.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET;
+            const tokenTrades = getTradesForToken(t);
+            const explorerAddr = t.address || t.curveAddress || '';
+
+            return `
+              <div class="rounded-2xl bg-[#181f2c] hover:bg-[#1c2434] border border-[#00C805]/30 hover:border-[#00C805]/60 p-4 sm:p-5 transition shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden">
+                <div class="absolute -right-12 -bottom-12 w-32 h-32 bg-[#00C805]/5 rounded-full blur-2xl pointer-events-none"></div>
+
+                <!-- Left: Token Identity & Badges -->
+                <div class="flex items-center gap-3.5 cursor-pointer group" onclick="openTokenDetail('${t.id}')">
+                  <div class="flex flex-col items-center shrink-0">
+                    ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl group-hover:scale-105 transition-transform", t)}
+                    ${renderTokenContractUnderLogoHtml(t)}
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h4 class="text-base font-bold text-white group-hover:text-[#00C805] transition">${escapeHtml(t.name)}</h4>
+                      <span class="text-xs font-mono font-bold text-[#00C805] px-2 py-0.5 rounded bg-[#00C805]/10 border border-[#00C805]/20">$${escapeHtml(t.ticker)}</span>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        👑 You Created
+                      </span>
+                      ${t.creatorTax > 0 ? `
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          ${t.creatorTax.toFixed(1)}% Dev Fee
+                        </span>
+                      ` : ''}
+                      ${isGraduated ? `
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                          🎓 Graduated
+                        </span>
+                      ` : ''}
+                    </div>
+
+                    <div class="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                      <span>Price: <b class="font-mono text-gray-200">$${(t.priceEth * ethUsdPrice).toFixed(6)}</b></span>
+                      <span>•</span>
+                      <span>MCap: <b class="font-mono text-gray-200">$${t.marketCapUsd.toLocaleString()}</b></span>
+                      <span>•</span>
+                      <span>Vol: <b class="font-mono text-gray-200">$${t.volume24hUsd.toLocaleString()}</b></span>
+                      <span>•</span>
+                      <span>Trades: <b class="font-mono text-gray-200">${tokenTrades.length}</b></span>
+                    </div>
+
+                    <div class="mt-1.5">
+                      ${renderMiniSocialsHtml(t)}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Middle: Bonding Curve Progress to 2.0 ETH Target -->
+                <div class="bg-[#121721] p-3.5 rounded-xl border border-gray-800 min-w-[240px] flex-1 max-w-md">
+                  <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="text-gray-400 text-[11px] font-medium flex items-center gap-1">
+                      <span>🎯</span> <span>Bonding Progress</span>
+                    </span>
+                    <span class="font-mono font-bold text-white text-xs">
+                      ${t.realEth.toFixed(3)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(1)} ETH
+                    </span>
+                  </div>
+                  <div class="w-full h-2.5 rounded-full bg-[#181f2c] overflow-hidden border border-gray-800 relative">
+                    <div class="h-full bg-gradient-to-r from-emerald-500 via-[#00C805] to-cyan-400 rounded-full transition-all duration-500" style="width: ${math.progressPercent}%;"></div>
+                  </div>
+                  <div class="flex items-center justify-between text-[10px] text-gray-400 mt-1.5 font-mono">
+                    <span class="text-[#00C805] font-bold">${math.progressPercent.toFixed(1)}% Completed</span>
+                    <span>${isGraduated ? '🎉 Ready for Uniswap v4' : `${remainingEth.toFixed(3)} ETH to v4`}</span>
+                  </div>
+                </div>
+
+                <!-- Right: Quick Actions -->
+                <div class="flex items-center gap-2 shrink-0 self-end lg:self-center">
+                  <button onclick="copyTokenShareLinkFor('${t.id}', '${escapeHtml(t.ticker)}')" class="px-3 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-gray-300 hover:text-white border border-gray-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer" title="Copy shareable link">
+                    <span>📋</span> <span>Share</span>
+                  </button>
+
+                  ${explorerAddr && explorerAddr.startsWith('0x') ? `
+                    <a href="https://robinhoodchain.blockscout.com/address/${explorerAddr}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-gray-400 hover:text-emerald-400 border border-gray-800 text-xs font-mono transition flex items-center gap-1" title="View on Blockscout">
+                      <span>Explorer</span> <span>↗</span>
+                    </a>
+                  ` : ''}
+
+                  <button onclick="openTokenDetail('${t.id}')" class="px-4 py-2 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs shadow-md shadow-[#00C805]/20 flex items-center gap-1 transition cursor-pointer">
+                    <span>Trade & Manage</span> <span>↗</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
     </div>
 
     <!-- Token Holdings List Section -->
@@ -3078,6 +3267,8 @@ async function handleCreateTokenSubmit(e) {
       description: desc,
       icon: finalIcon,
       creator: shortCreator,
+      rawCreator: userWallet.address,
+      creatorAddress: userWallet.address.toLowerCase(),
       createdAgo: "Just now",
       realEth: devBuyEth > 0 ? devBuyEth : 0.0,
       tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE,
@@ -3138,6 +3329,17 @@ async function handleCreateTokenSubmit(e) {
         };
         localStorage.setItem(`rh_token_socials_${deployedTokenAddress.toLowerCase()}`, JSON.stringify(socialsObj));
         localStorage.setItem(`rh_token_socials_${ticker.toUpperCase()}`, JSON.stringify(socialsObj));
+
+        // Save to user launched registry so it appears on profile instantly
+        const userLaunchedKey = `rh_user_launched_${userWallet.address.toLowerCase()}`;
+        let myLaunched = [];
+        try {
+          myLaunched = JSON.parse(localStorage.getItem(userLaunchedKey) || '[]');
+        } catch (e) { myLaunched = []; }
+        if (!myLaunched.includes(deployedTokenAddress.toLowerCase())) {
+          myLaunched.push(deployedTokenAddress.toLowerCase());
+          localStorage.setItem(userLaunchedKey, JSON.stringify(myLaunched));
+        }
       } catch (e) {}
     }
 
