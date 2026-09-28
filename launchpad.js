@@ -95,127 +95,85 @@ let wsClient = null;
 let browserProvider = null;
 let browserSigner = null;
 
-// --- Initial Showcase Tokens (will be augmented by live Neon DB / On-chain launches) ---
+// --- Live On-Chain Tokens on Robinhood Chain Mainnet ---
 let tokens = [
   {
-    id: "gme2",
-    address: null,
-    curveAddress: null,
-    ticker: "GME2",
-    name: "GameStop 2.0",
-    description: "The digital sequel to the short squeeze that started it all on Robinhood. Can't stop, won't stop.",
-    icon: "🎮",
-    creator: "0x742d...44e",
-    createdAgo: "12m ago",
-    realEth: 1.62,
-    tokensLeft: 250000000,
-    priceEth: 0.000000034,
-    marketCapUsd: 142800,
-    change24h: 184.2,
-    volume24hUsd: 38400,
+    id: "0x7Ad937A5f1c33E1b6B3761381Ac93D76C0c39BfC",
+    address: "0x7Ad937A5f1c33E1b6B3761381Ac93D76C0c39BfC",
+    curveAddress: "0xf548ae015fcCE6AeA58705b2853347a5D9ec6654",
+    ticker: "YDOGS",
+    name: "Yellow Dogs",
+    description: "Newly launched on Robinhood Chain",
+    icon: "🚀",
+    creator: "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+    createdAgo: "Just now",
+    realEth: 0.0,
+    tokensLeft: 800000000,
+    priceEth: 0.000000000625,
+    marketCapUsd: 0,
+    change24h: 0.0,
+    volume24hUsd: 0,
     graduated: false,
-    creatorTax: 1.0,
-    holderTax: 2.0,
-    website: "https://gamestop2.xyz",
-    twitter: "https://x.com/GameStop20",
-    telegram: "https://t.me/GameStop20Robinhood",
-    youtube: "https://youtube.com/@GameStop20",
-    discord: null,
-    history: [0.3, 0.6, 0.9, 1.2, 1.45, 1.62]
-  },
-  {
-    id: "wsb",
-    address: null,
-    curveAddress: null,
-    ticker: "WSB",
-    name: "WallStreetBets Token",
-    description: "Diamond hands only. Built for the retail army ready to graduate into Uniswap v4.",
-    icon: "💎",
-    creator: "0x892a...12c",
-    createdAgo: "1h ago",
-    realEth: 1.94,
-    tokensLeft: 60000000,
-    priceEth: 0.000000048,
-    marketCapUsd: 201600,
-    change24h: 312.8,
-    volume24hUsd: 94200,
-    graduated: false,
-    creatorTax: 0.0,
-    holderTax: 3.0,
-    website: "https://wsbtoken.org",
-    twitter: "https://x.com/WallStreetBets",
-    telegram: "https://t.me/WallStreetBetsToken",
+    creatorTax: 3.0,
+    holderTax: 1.0,
+    website: null,
+    twitter: null,
+    telegram: null,
     youtube: null,
-    discord: "https://discord.gg/wallstreetbets",
-    history: [0.4, 0.8, 1.2, 1.6, 1.82, 1.94]
+    discord: null,
+    history: [0.0]
   },
   {
-    id: "hoodie",
-    address: null,
-    curveAddress: null,
-    ticker: "HOODIE",
-    name: "RobinHoodie",
-    description: "Official mascot token for the Robinhood Chain degens wearing neon green hoodies.",
-    icon: "🏹",
-    creator: "0x19a2...99f",
-    createdAgo: "34m ago",
-    realEth: 0.85,
-    tokensLeft: 520000000,
-    priceEth: 0.000000021,
-    marketCapUsd: 88200,
-    change24h: 62.5,
-    volume24hUsd: 19500,
+    id: "0xaB00706959E9e958b74E818319a4FB4dB96e61c7",
+    address: "0xaB00706959E9e958b74E818319a4FB4dB96e61c7",
+    curveAddress: "0xde6dA779f568C12e376be58A0d7281e5EeFde2Ca",
+    ticker: "SAMPI",
+    name: "Sampi metaluh",
+    description: "Newly launched on Robinhood Chain",
+    icon: "/uploads/logo_sampi.png",
+    creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    createdAgo: "1d ago",
+    realEth: 0.000096,
+    tokensLeft: 799846400,
+    priceEth: 0.000000000625,
+    marketCapUsd: 2100,
+    change24h: 12.0,
+    volume24hUsd: 403,
     graduated: false,
     creatorTax: 2.0,
     holderTax: 0.0,
-    website: "https://robinhoodie.io",
-    twitter: "https://x.com/RobinHoodieL2",
-    telegram: "https://t.me/RobinHoodieArmy",
+    website: null,
+    twitter: null,
+    telegram: null,
     youtube: null,
     discord: null,
-    history: [0.2, 0.4, 0.65, 0.85]
+    history: [0.000096]
   },
   {
-    id: "deepvalue",
-    address: null,
-    curveAddress: null,
-    ticker: "DFV",
-    name: "Deep F***ing Value",
-    description: "In memory of the red headband and the roaring kitten. Pure classic fair launch.",
-    icon: "🐱",
-    creator: "0x33e1...fa8",
-    createdAgo: "2h ago",
-    realEth: 0.40,
-    tokensLeft: 690000000,
-    priceEth: 0.000000014,
-    marketCapUsd: 58800,
-    change24h: -8.4,
-    volume24hUsd: 8200,
+    id: "0x60F5E4F14aCa10921626201ECA1f2EDeaF9D16C0",
+    address: "0x60F5E4F14aCa10921626201ECA1f2EDeaF9D16C0",
+    curveAddress: "0xE9aD3f3A8c9807EE041410c9BAdD36b67Cfc5C5E",
+    ticker: "SCAT",
+    name: "Smille Cat",
+    description: "Newly launched on Robinhood Chain",
+    icon: "/uploads/logo_scat.png",
+    creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
+    createdAgo: "2d ago",
+    realEth: 0.0,
+    tokensLeft: 800000000,
+    priceEth: 0.000000000625,
+    marketCapUsd: 0,
+    change24h: 0.0,
+    volume24hUsd: 0,
     graduated: false,
-    creatorTax: 0.0,
+    creatorTax: 2.0,
     holderTax: 0.0,
-    history: [0.1, 0.25, 0.40]
-  },
-  {
-    id: "doge2",
-    address: null,
-    curveAddress: null,
-    ticker: "DOGE2",
-    name: "Robin Doge",
-    description: "Successfully graduated into Uniswap v4 with LP burned permanently.",
-    icon: "🐕",
-    creator: "0x44c9...71b",
-    createdAgo: "3h ago",
-    realEth: 2.0,
-    tokensLeft: 0,
-    priceEth: 0.000000052,
-    marketCapUsd: 218400,
-    change24h: 420.0,
-    volume24hUsd: 145000,
-    graduated: true,
-    creatorTax: 1.5,
-    holderTax: 1.5,
-    history: [0.3, 0.8, 1.3, 1.7, 2.0]
+    website: null,
+    twitter: null,
+    telegram: null,
+    youtube: null,
+    discord: null,
+    history: [0.0]
   }
 ];
 
@@ -237,28 +195,8 @@ let userWallet = {
 };
 
 let tokenTradesMap = {};
-
-const defaultMockTrades = {
-  gme2: [
-    { type: 'buy', user: '0x71C...a82', rawTrader: '0x71C597e7b686d87192847a8291048b', eth: 0.15, tokens: 4250000, time: '2m ago', txHash: '0x3a4f89d023b184e91c102a' },
-    { type: 'buy', user: '0x3B8...42c', rawTrader: '0x3B892a0e44Cc0532925a3b844Bc454e4438f42c', eth: 0.35, tokens: 9800000, time: '8m ago', txHash: '0x6e2b901a55cd84d2' },
-    { type: 'sell', user: '0x9E1...56f', rawTrader: '0x9E102a0e44Cc0532925a3b844Bc454e4438f56f', eth: 0.08, tokens: 2300000, time: '14m ago', txHash: '0x1c8a33f789ab2201' },
-    { type: 'buy', user: '0xF44...b19', rawTrader: '0xF44d35Cc6634C0532925a3b844Bc454e4438fb19', eth: 0.50, tokens: 14100000, time: '22m ago', txHash: '0x7b9ce510da893321' },
-    { type: 'buy', user: '0x12A...77e', rawTrader: '0x12A5Cc6634C0532925a3b844Bc454e4438f77e', eth: 0.05, tokens: 1420000, time: '35m ago', txHash: '0x4d21aa0388cd5591' },
-    { type: 'sell', user: '0x88D...c31', rawTrader: '0x88Dc31Cc6634C0532925a3b844Bc454e4438fc31', eth: 0.12, tokens: 3450000, time: '48m ago', txHash: '0x99fa66e4412ab349' }
-  ],
-  wsb: [
-    { type: 'buy', user: '0x22c...881', rawTrader: '0x22c90e44Cc0532925a3b844Bc454e4438f881', eth: 0.25, tokens: 6200000, time: '5m ago', txHash: '0x55aa112288cd9910' },
-    { type: 'buy', user: '0x66f...410', rawTrader: '0x66f80e44Cc0532925a3b844Bc454e4438f410', eth: 0.40, tokens: 9900000, time: '19m ago', txHash: '0x77bb334411ee8820' },
-    { type: 'sell', user: '0x10b...392', rawTrader: '0x10b20e44Cc0532925a3b844Bc454e4438f392', eth: 0.15, tokens: 3700000, time: '42m ago', txHash: '0x88cc556633ff7730' }
-  ],
-  hoodie: [
-    { type: 'buy', user: '0x99a...442', rawTrader: '0x99a30e44Cc0532925a3b844Bc454e4438f442', eth: 0.10, tokens: 2500000, time: '12m ago', txHash: '0xaa11778844bb6640' },
-    { type: 'buy', user: '0x33e...219', rawTrader: '0x33e50e44Cc0532925a3b844Bc454e4438f219', eth: 0.20, tokens: 5000000, time: '31m ago', txHash: '0xbb22990055aa8850' }
-  ]
-};
-
-let recentTrades = defaultMockTrades.gme2.slice();
+const defaultMockTrades = {};
+let recentTrades = [];
 
 let comments = [
   { user: "0x742d...44e", text: "Robinhood Chain gas is under 0.0001 ETH, super fast L2! ⚡", time: "5m ago", avatar: "🏹" },
@@ -924,13 +862,6 @@ async function refreshUserWalletData() {
         console.warn(`Could not refresh data for token ${t.ticker}:`, e);
       }
     }));
-
-    // If active token is one of the initial demo tokens and user has no on-chain balance yet, maintain demo holding
-    const hasAnyOnchain = Object.values(userWallet.holdings).some(b => b > 0);
-    if (!hasAnyOnchain) {
-      userWallet.holdings['gme2'] = 450000;
-      userWallet.claimableRewardsEth['gme2'] = 0.045;
-    }
 
     // Check total claimable rewards to toggle notification badge on nav
     let totalClaimable = 0;

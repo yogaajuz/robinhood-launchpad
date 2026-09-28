@@ -176,72 +176,7 @@ async function initDatabase() {
     `);
   }
 
-  // Seed sample tokens if table is empty
-  const existing = await query('SELECT COUNT(*) as count FROM tokens');
-  const count = existing[0]?.count || 0;
-
-  if (parseInt(count) === 0) {
-    console.log('🌱 [Database] Seeding initial token data...');
-    const seedTokens = [
-      {
-        id: "0x71c597e7b686...gme2",
-        curve: "0x12a5...curve1",
-        name: "GameStop 2.0",
-        symbol: "GME2",
-        desc: "The digital sequel to the short squeeze that started it all on Robinhood. Can't stop, won't stop.",
-        logo: "🎮",
-        creator: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-        realEth: 1.62,
-        tokensLeft: 250000000,
-        mcap: 142800,
-        vol: 38400,
-        devTax: 100,
-        holderTax: 200,
-        graduated: 0
-      },
-      {
-        id: "0x892a12c4...wsb",
-        curve: "0x33b1...curve2",
-        name: "WallStreetBets Token",
-        symbol: "WSB",
-        desc: "Diamond hands only. Built for the retail army ready to graduate into Uniswap v4.",
-        logo: "💎",
-        creator: "0x892a0e44Cc0532925a3b844Bc454e4438f44e12c",
-        realEth: 1.94,
-        tokensLeft: 60000000,
-        mcap: 201600,
-        vol: 94200,
-        devTax: 0,
-        holderTax: 300,
-        graduated: 0
-      },
-      {
-        id: "0x19a299f...hoodie",
-        curve: "0x44c2...curve3",
-        name: "RobinHoodie",
-        symbol: "HOODIE",
-        desc: "Official mascot token for the Robinhood Chain degens wearing neon green hoodies.",
-        logo: "🏹",
-        creator: "0x19a235Cc6634C0532925a3b844Bc454e4438f99f",
-        realEth: 0.85,
-        tokensLeft: 520000000,
-        mcap: 88200,
-        vol: 19500,
-        devTax: 200,
-        holderTax: 0,
-        graduated: 0
-      }
-    ];
-
-    for (const t of seedTokens) {
-      await query(
-        `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, tokens_left, market_cap_usd, volume_24h_usd, creator_tax_bps, holder_tax_bps, is_graduated)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [t.id, t.curve, t.name, t.symbol, t.desc, t.logo, t.creator, t.realEth, t.tokensLeft, t.mcap, t.vol, t.devTax, t.holderTax, Boolean(t.graduated)]
-      );
-    }
-  }
-
+  // Pure fair launch platform - no fake or demo tokens seeded
   console.log('✅ [Database] Ready for cloud hosting & local traffic.');
 }
 
