@@ -3786,7 +3786,9 @@ async function handleCreateTokenSubmit(e) {
   const name = document.getElementById("newTokenName").value.trim();
   const ticker = document.getElementById("newTokenTicker").value.trim().toUpperCase().replace("$", "");
   const desc = document.getElementById("newTokenDesc").value.trim();
-  const devBuyEth = parseFloat(document.getElementById("newTokenDevBuy")?.value) || 0;
+  const devBuyInputEl = document.getElementById("newTokenDevBuy");
+  const devBuyRawStr = devBuyInputEl ? devBuyInputEl.value.trim() : "";
+  const devBuyEth = parseFloat(devBuyRawStr) || 0;
 
   // Enforce minimum 0.0001 ETH if Sniper Defense (Optional Initial Buy) is used
   if (devBuyEth > 0 && devBuyEth < 0.0001) {
@@ -3948,7 +3950,18 @@ async function handleCreateTokenSubmit(e) {
     const factory = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_ABI, browserSigner);
     const creatorTaxBps = Math.round(creatorTax * 100);
     const holderTaxBps = Math.round(holderTax * 100);
-    const devBuyWei = devBuyEth >= 0.0001 ? ethers.parseEther(devBuyEth.toString()) : 0n;
+    let devBuyWei = 0n;
+    if (devBuyEth >= 0.0001) {
+      try {
+        const cleanStr = devBuyRawStr && !isNaN(Number(devBuyRawStr)) && Number(devBuyRawStr) > 0
+          ? Number(devBuyRawStr).toFixed(18).replace(/\.?0+$/, "")
+          : devBuyEth.toString();
+        devBuyWei = ethers.parseEther(cleanStr);
+      } catch (errWei) {
+        console.warn("Could not parse devBuyWei, falling back:", errWei);
+        devBuyWei = ethers.parseUnits(devBuyEth.toFixed(8), 18);
+      }
+    }
 
     // Sanitize on-chain logo URL
     let onChainLogo = finalIcon;
