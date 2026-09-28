@@ -104,6 +104,10 @@ contract RobinhoodTokenFactory {
         uint256 devBuyAmount = msg.value - creationFee;
         if (devBuyAmount > 0) {
             curve.buyTokens{value: devBuyAmount}(0);
+            uint256 boughtTokens = curve.token().balanceOf(address(this));
+            if (boughtTokens > 0) {
+                curve.token().transfer(msg.sender, boughtTokens);
+            }
         }
     }
 

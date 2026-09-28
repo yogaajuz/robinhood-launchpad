@@ -3598,7 +3598,7 @@ function updateTaxSummary() {
 let successModalTimer = null;
 let successModalInterval = null;
 
-function showTokenCreatedSuccessModal(token, txHash) {
+function showTokenCreatedSuccessModal(token, txHash, initialTokensBought = 0) {
   const modal = document.getElementById("createSuccessModal");
   if (!modal) {
     if (token) openTokenDetail(token.id);
@@ -3611,6 +3611,8 @@ function showTokenCreatedSuccessModal(token, txHash) {
   const addrEl = document.getElementById("successModalContractAddr");
   const explorerLink = document.getElementById("successModalExplorerLink");
   const countdownEl = document.getElementById("successModalCountdown");
+  const devBuyBadge = document.getElementById("successModalDevBuyBadge");
+  const devBuyText = document.getElementById("successModalDevBuyText");
 
   if (iconEl) {
     iconEl.innerHTML = renderTokenIconHtml(token.icon, "w-12 h-12 text-2xl", token);
@@ -3627,12 +3629,21 @@ function showTokenCreatedSuccessModal(token, txHash) {
     explorerLink.style.display = "none";
   }
 
+  if (devBuyBadge && devBuyText) {
+    if (initialTokensBought > 0) {
+      devBuyText.innerHTML = `🛡️ Sniper Defense: <b class="text-white font-mono">${Math.round(initialTokensBought).toLocaleString()} $${token.ticker}</b> received in your wallet!`;
+      devBuyBadge.classList.remove("hidden");
+    } else {
+      devBuyBadge.classList.add("hidden");
+    }
+  }
+
   // Pre-switch to the token terminal in the background so it's fully ready
   openTokenDetail(token.id);
 
   modal.classList.remove("hidden");
 
-  let remaining = 2;
+  let remaining = initialTokensBought > 0 ? 3 : 2;
   if (countdownEl) countdownEl.innerText = remaining;
 
   if (successModalInterval) clearInterval(successModalInterval);
@@ -3648,7 +3659,7 @@ function showTokenCreatedSuccessModal(token, txHash) {
 
   successModalTimer = setTimeout(() => {
     dismissSuccessModal();
-  }, 2400);
+  }, (remaining + 0.5) * 1000);
 }
 
 function dismissSuccessModal() {
@@ -3733,7 +3744,34 @@ window.setDevBuyPreset = function(val) {
   if (input) {
     input.value = val > 0 ? val.toString() : "";
     input.focus();
+    updateDevBuyEstimate();
   }
+};
+
+window.updateDevBuyEstimate = function() {
+  const input = document.getElementById("newTokenDevBuy");
+  const box = document.getElementById("devBuyEstimateBox");
+  const amountEl = document.getElementById("devBuyEstimateAmount");
+  if (!input || !box || !amountEl) return;
+
+  const ethVal = parseFloat(input.value) || 0;
+  if (ethVal < 0.0001) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  // Curve constant product estimate:
+  // VIRTUAL_ETH = 0.05, TOKENS_FOR_CURVE = 800,000,000
+  // Net ETH after ~2% total protocol/dev fee
+  const netEth = ethVal * 0.98;
+  const currentEth = 0.05;
+  const newEth = currentEth + netEth;
+  const k = 0.05 * 800000000;
+  const newTokenReserve = k / newEth;
+  const tokensOut = Math.max(0, 800000000 - newTokenReserve);
+
+  amountEl.innerText = `~${Math.round(tokensOut).toLocaleString()} tokens`;
+  box.classList.remove("hidden");
 };
 
 async function handleCreateTokenSubmit(e) {
@@ -3792,8 +3830,10 @@ async function handleCreateTokenSubmit(e) {
     return;
   }
 
-  if (devBuyEth > 0 && devBuyEth > userWallet.balanceEth) {
-    alert(`Insufficient ETH balance for initial dev buy!\nYour balance: ${userWallet.balanceEth.toFixed(4)} ETH\nRequired: ${devBuyEth} ETH`);
+  const estimatedCreationFee = 0.0003;
+  const totalEthNeeded = estimatedCreationFee + devBuyEth;
+  if (totalEthNeeded > userWallet.balanceEth) {
+    alert(`Insufficient ETH balance in your connected wallet!\n\nYour balance: ${userWallet.balanceEth.toFixed(4)} ETH\nRequired: ~${totalEthNeeded.toFixed(4)} ETH (${estimatedCreationFee} creation fee + ${devBuyEth > 0 ? `${devBuyEth} initial buy + ` : ''}gas)`);
     return;
   }
 
@@ -3946,22 +3986,28 @@ async function handleCreateTokenSubmit(e) {
     try {
       creationFeeWei = await factory.creationFee();
     } catch (errFee) {
-      creationFeeWei = 0n;
+      creationFeeWei = ethers.parseEther("0.0003");
     }
-    const totalCreationValue = creationFeeWei + devBuyWei;
 
-    if (submitBtn) submitBtn.innerText = "Deploying on Robinhood Chain...";
+    if (submitBtn) {
+      submitBtn.innerText = devBuyEth >= 0.0001
+        ? "1/2 Deploying Coin on Robinhood Chain..."
+        : "Deploying on Robinhood Chain...";
+    }
 
+    // IMPORTANT: Pass ONLY creationFeeWei to factory.createToken!
+    // Never send devBuyEth into factory.createToken, because the factory contract
+    // is the caller/msg.sender of curve.buyTokens and does not forward tokens to the user.
     const tx = await factory.createToken(
       name,
       ticker,
       onChainMetadataUri,
       creatorTaxBps,
       holderTaxBps,
-      { value: totalCreationValue }
+      { value: creationFeeWei }
     );
 
-    if (submitBtn) submitBtn.innerText = "Waiting for Confirmation...";
+    if (submitBtn) submitBtn.innerText = "Confirming Deployment...";
     const receipt = await tx.wait();
 
     let deployedTokenAddress = null;
@@ -3990,7 +4036,43 @@ async function handleCreateTokenSubmit(e) {
       }
     }
 
+    // Step 2: Execute Sniper Defense Initial Buy directly from the user's wallet!
+    // This ensures tokens are transferred DIRECTLY into the creator's wallet!
+    let tokensBoughtAmount = 0;
+    let buyTxHash = null;
+
+    if (devBuyEth >= 0.0001 && deployedCurveAddress) {
+      try {
+        if (submitBtn) {
+          submitBtn.innerText = `2/2 Executing Sniper Defense Buy (${devBuyEth} ETH)...`;
+        }
+        const curveContract = new ethers.Contract(deployedCurveAddress, BONDING_CURVE_ABI, browserSigner);
+        const buyTx = await curveContract.buyTokens(0n, { value: devBuyWei });
+        const buyReceipt = await buyTx.wait();
+        buyTxHash = buyReceipt.hash;
+        console.log(`✅ Sniper Defense Initial Buy Confirmed! Tx: ${buyTxHash}`);
+
+        // Read exact on-chain balance credited to the user
+        if (deployedTokenAddress) {
+          try {
+            const tokenContract = new ethers.Contract(deployedTokenAddress, ERC20_ABI, browserProvider);
+            const userBalWei = await tokenContract.balanceOf(userWallet.address);
+            tokensBoughtAmount = parseFloat(ethers.formatEther(userBalWei));
+            userWallet.holdings[deployedTokenAddress] = tokensBoughtAmount;
+            console.log(`💰 User token balance credited: ${tokensBoughtAmount.toLocaleString()} $${ticker}`);
+          } catch (balErr) {
+            console.warn("Could not fetch user token balance:", balErr);
+          }
+        }
+      } catch (buyErr) {
+        console.error("Sniper defense buy error:", buyErr);
+        alert(`⚠️ Coin deployed successfully, but Sniper Defense initial buy was cancelled or failed:\n${buyErr.reason || buyErr.message || buyErr}\n\nYou can still buy tokens manually on the trade terminal!`);
+      }
+    }
+
     const shortCreator = userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4);
+    const initialEthReserve = (tokensBoughtAmount > 0 && devBuyEth >= 0.0001) ? devBuyEth : 0.0;
+
     const newToken = {
       id: deployedTokenAddress || `token_${Date.now()}`,
       address: deployedTokenAddress,
@@ -4003,12 +4085,12 @@ async function handleCreateTokenSubmit(e) {
       rawCreator: userWallet.address,
       creatorAddress: userWallet.address.toLowerCase(),
       createdAgo: "Just now",
-      realEth: devBuyEth >= 0.0001 ? devBuyEth : 0.0,
-      tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE,
+      realEth: initialEthReserve,
+      tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE - tokensBoughtAmount,
       priceEth: 0.00000001,
-      marketCapUsd: Math.round(((devBuyEth >= 0.0001 ? devBuyEth : 0) + 0.05) * ethUsdPrice * 8),
+      marketCapUsd: Math.round((initialEthReserve + 0.05) * ethUsdPrice * 8),
       change24h: 0.0,
-      volume24hUsd: devBuyEth >= 0.0001 ? (devBuyEth * ethUsdPrice) : 0,
+      volume24hUsd: initialEthReserve * ethUsdPrice,
       graduated: false,
       creatorTax: creatorTax,
       holderTax: holderTax,
@@ -4017,7 +4099,7 @@ async function handleCreateTokenSubmit(e) {
       telegram: formattedTelegram,
       youtube: formattedYoutube,
       discord: formattedDiscord,
-      history: [0.05, devBuyEth >= 0.0001 ? devBuyEth : 0.05]
+      history: [0.05, initialEthReserve > 0 ? initialEthReserve : 0.05]
     };
 
     // Save to backend database
@@ -4036,7 +4118,7 @@ async function handleCreateTokenSubmit(e) {
             creator: userWallet.address,
             creatorTaxBps: creatorTaxBps,
             holderTaxBps: holderTaxBps,
-            initialEth: devBuyEth >= 0.0001 ? devBuyEth : 0,
+            initialEth: initialEthReserve,
             websiteUrl: formattedWebsite,
             twitterUrl: formattedTwitter,
             telegramUrl: formattedTelegram,
@@ -4044,6 +4126,21 @@ async function handleCreateTokenSubmit(e) {
             discordUrl: formattedDiscord
           })
         });
+
+        // Record initial buy trade if executed
+        if (tokensBoughtAmount > 0) {
+          await fetch(`${BACKEND_API_URL}/tokens/${deployedTokenAddress}/trades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              trader: userWallet.address,
+              isBuy: true,
+              ethAmount: devBuyEth,
+              tokenAmount: tokensBoughtAmount,
+              txHash: buyTxHash || receipt.hash
+            })
+          });
+        }
       } catch (e) {
         console.warn("Could not post new token to backend:", e);
       }
@@ -4077,6 +4174,9 @@ async function handleCreateTokenSubmit(e) {
     }
 
     tokens.unshift(newToken);
+    if (tokensBoughtAmount > 0) {
+      userWallet.holdings[newToken.id] = tokensBoughtAmount;
+    }
     try {
       localStorage.setItem(LOCAL_STORAGE_TOKENS_KEY, JSON.stringify(tokens));
     } catch (e) {}
@@ -4087,7 +4187,7 @@ async function handleCreateTokenSubmit(e) {
     setTimeout(fetchOnChainTokens, 3000);
 
     // Elegant Success Modal with automatic transition to Token Page
-    showTokenCreatedSuccessModal(newToken, receipt.hash);
+    showTokenCreatedSuccessModal(newToken, buyTxHash || receipt.hash, tokensBoughtAmount);
   } catch (err) {
     console.error("Token creation error:", err);
     alert("Transaction failed or rejected: " + (err.reason || err.message || err));

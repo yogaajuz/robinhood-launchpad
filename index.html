@@ -656,8 +656,12 @@
           </div>
           <p class="text-[11px] text-gray-500 mb-2">Buy tokens in the same deployment transaction to defend against frontrunners and snipers (Minimum 0.0001 ETH).</p>
           <div class="flex items-center gap-2 p-2 bg-[#181f2c] rounded-xl border border-gray-700 focus-within:border-[#00C805] transition">
-            <input id="newTokenDevBuy" type="number" step="0.0001" min="0" placeholder="0.0001" class="w-full bg-transparent text-sm font-mono font-bold text-white focus:outline-none">
+            <input id="newTokenDevBuy" type="number" step="0.0001" min="0" placeholder="0.0001" oninput="updateDevBuyEstimate()" class="w-full bg-transparent text-sm font-mono font-bold text-white focus:outline-none">
             <span class="text-xs font-mono font-bold text-gray-400 shrink-0">ETH</span>
+          </div>
+          <div id="devBuyEstimateBox" class="hidden mt-2 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 font-mono flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><span>🛡️</span> <span>Tokens Received in Wallet:</span></span>
+            <span id="devBuyEstimateAmount" class="font-bold text-white">~1,564,900</span>
           </div>
           <div class="flex items-center gap-1.5 mt-2 flex-wrap">
             <button type="button" onclick="setDevBuyPreset(0.0001)" class="px-2 py-0.5 rounded-lg bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 hover:border-[#00C805]/50 text-[10px] font-mono text-gray-300 hover:text-white transition cursor-pointer">
@@ -732,6 +736,12 @@
           </div>
           <p id="successModalContractAddr" class="text-[10px] font-mono text-gray-400 mt-0.5 truncate">0x...</p>
         </div>
+      </div>
+
+      <!-- Sniper Defense Badge -->
+      <div id="successModalDevBuyBadge" class="hidden mb-3 p-2.5 rounded-xl bg-[#00C805]/15 border border-[#00C805]/30 text-xs text-[#00C805] font-mono flex items-center justify-center gap-1.5 font-bold">
+        <span>🛡️</span>
+        <span id="successModalDevBuyText">Sniper Defense: Tokens sent to your wallet!</span>
       </div>
 
       <!-- Actions -->
