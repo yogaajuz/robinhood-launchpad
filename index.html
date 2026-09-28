@@ -499,49 +499,43 @@
         <div>
           <label class="block text-gray-300 font-semibold mb-1.5 flex items-center justify-between">
             <span>Token Logo Image *</span>
-            <span class="text-[10px] text-gray-400 font-normal">PNG, JPG, GIF, WebP</span>
+            <span class="text-[10px] text-gray-400 font-normal">PNG, JPG, WebP, GIF, SVG</span>
           </label>
 
-          <!-- Hidden Native File Input -->
-          <input type="file" id="newTokenLogoFile" accept="image/*" class="hidden">
+          <!-- Accessible Native File Input -->
+          <input type="file" id="newTokenLogoFile" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml" class="sr-only">
 
-          <!-- Drag and Drop Box -->
-          <div id="logoUploadDropzone" class="border-2 border-dashed border-gray-700 hover:border-[#00C805] bg-[#121721] rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 group">
-            <div class="w-10 h-10 rounded-full bg-[#181f2c] group-hover:bg-[#00C805]/10 flex items-center justify-center text-gray-400 group-hover:text-[#00C805] transition">
+          <!-- Drag and Drop Label Box (Natively opens file picker on click) -->
+          <label for="newTokenLogoFile" id="logoUploadDropzone" class="border-2 border-dashed border-gray-700 hover:border-[#00C805] bg-[#121721] hover:bg-[#151c28] rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 group block">
+            <div class="w-10 h-10 rounded-full bg-[#181f2c] group-hover:bg-[#00C805]/15 flex items-center justify-center text-gray-400 group-hover:text-[#00C805] transition">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             </div>
             <div class="text-xs font-semibold text-gray-200">
               <span class="text-[#00C805] underline">Click to upload image</span> or drag & drop
             </div>
             <div class="text-[10px] text-gray-500">Square 1:1 image recommended (Up to 5MB)</div>
-          </div>
+          </label>
 
           <!-- Uploaded Thumbnail Preview Box -->
           <div id="logoPreviewContainer" class="hidden flex items-center justify-between p-2.5 bg-[#121721] border border-[#00C805]/40 rounded-xl">
-            <div class="flex items-center gap-3">
-              <img id="logoPreviewImg" src="" alt="Token Logo" class="w-12 h-12 object-cover rounded-lg border border-gray-800 shadow">
-              <div>
-                <div id="logoFileName" class="text-xs font-bold text-white truncate max-w-[180px]">logo.png</div>
+            <div class="flex items-center gap-3 min-w-0">
+              <img id="logoPreviewImg" src="" alt="Token Logo Preview" class="w-12 h-12 object-cover rounded-lg border border-gray-800 shadow shrink-0">
+              <div class="min-w-0">
+                <div id="logoFileName" class="text-xs font-bold text-white truncate max-w-[170px]">logo.png</div>
                 <div class="text-[10px] text-[#00C805] flex items-center gap-1">
-                  <span>✓</span> Logo ready
+                  <span>✓</span> Image selected
                 </div>
               </div>
             </div>
-            <button type="button" onclick="removeUploadedLogo(event)" class="text-xs text-red-400 hover:text-red-300 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition font-semibold">
+            <button type="button" onclick="removeUploadedLogo(event)" class="text-xs text-red-400 hover:text-red-300 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition font-semibold shrink-0 cursor-pointer">
               Change
             </button>
           </div>
 
-          <!-- Fallback Emoji or Direct URL input -->
-          <div class="mt-2.5 pt-2.5 border-t border-gray-800/80 space-y-2">
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] text-gray-400">Fallback Emoji:</span>
-              <input id="newTokenFallbackEmoji" placeholder="🚀" class="w-12 bg-[#121721] rounded-lg px-2 py-1 text-center text-white border border-gray-800 focus:outline-none focus:border-[#00C805] text-xs">
-            </div>
-            <div>
-              <div class="text-[10px] text-gray-400 mb-1">Or paste Direct Image URL (IPFS, Imgur, Discord, etc.):</div>
-              <input id="newTokenLogoUrl" type="url" placeholder="https://... (PNG, JPG, WebP, GIF)" class="w-full bg-[#121721] rounded-xl px-3 py-1.5 text-white border border-gray-800 focus:outline-none focus:border-[#00C805] text-xs font-mono">
-            </div>
+          <!-- Direct Image URL Input (Optional alternative) -->
+          <div class="mt-2.5 pt-2 border-t border-gray-800/80">
+            <label class="block text-[11px] text-gray-400 mb-1">Or paste Direct Image URL (IPFS, Imgur, HTTPS):</label>
+            <input id="newTokenLogoUrl" type="url" placeholder="https://... (PNG, JPG, WebP, GIF, SVG)" class="w-full bg-[#121721] rounded-xl px-3 py-2 text-white border border-gray-800 focus:outline-none focus:border-[#00C805] text-xs font-mono">
           </div>
         </div>
 

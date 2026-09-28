@@ -104,7 +104,7 @@ let tokens = [
     ticker: "YDOGS",
     name: "Yellow Dogs",
     description: "Newly launched on Robinhood Chain",
-    icon: "🚀",
+    icon: "/uploads/logo_default.png",
     creator: "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
     createdAgo: "Just now",
     realEth: 0.0,
@@ -184,6 +184,7 @@ let currentView = "explore";
 let ethUsdPrice = 4200;
 let uploadedLogoDataUrl = null;
 let uploadedLogoFileRaw = null;
+let preUploadedServerUrl = null;
 
 // User Wallet initialized to REAL unauthenticated state (Zero fake balance!)
 let userWallet = {
@@ -204,22 +205,8 @@ let comments = [
   { user: "0x19a2...99f", text: "Reflection dividends are sent straight in native ETH.", time: "25m ago", avatar: "💎" }
 ];
 
-// --- Helper: Get Token Fallback Emoji ---
-function getFallbackEmoji(ticker = "", name = "") {
-  const s = ((ticker || "") + " " + (name || "")).toUpperCase();
-  if (s.includes("SAMPI") || s.includes("COW") || s.includes("BULL") || s.includes("METALUH")) return "🐮";
-  if (s.includes("SCAT") || s.includes("CAT") || s.includes("KITTY") || s.includes("SMILLE")) return "🐱";
-  if (s.includes("DOG") || s.includes("SHIB") || s.includes("INU")) return "🐶";
-  if (s.includes("PEPE") || s.includes("FROG")) return "🐸";
-  if (s.includes("GME") || s.includes("GAME")) return "🎮";
-  if (s.includes("WSB") || s.includes("DIAMOND")) return "💎";
-  if (s.includes("HOOD") || s.includes("ROBIN")) return "🏹";
-  if (s.includes("MOON") || s.includes("ROCKET")) return "🚀";
-  if (s.includes("BEAR")) return "🐻";
-  if (s.includes("LION")) return "🦁";
-  if (s.includes("PUMP")) return "📈";
-  return "🪙";
-}
+// Default Token Logo Placeholder (Never fallback to random emojis)
+const DEFAULT_TOKEN_LOGO = "/uploads/logo_default.png";
 
 // --- HTML Escaping & Formatting Helpers ---
 function escapeHtml(str) {
@@ -319,57 +306,45 @@ async function uploadFileToPinataIpfs(file, ticker = "coin") {
   return null;
 }
 
-// --- Helper: Render Token Icon with Instant Zero-Loading Dual Layer ---
+// --- Helper: Render Token Icon (Professional image rendering with clean fallback, NO emojis) ---
 function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = null) {
   const ticker = tokenObj?.ticker || "";
   const name = tokenObj?.name || "";
-  const fallback = getFallbackEmoji(ticker, name);
 
-  if (!icon) {
-    return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${fallback}</span>`;
+  // Sanitize icon: If icon is missing or an emoji/invalid string, use DEFAULT_TOKEN_LOGO
+  let fullUrl = icon;
+  const isEmojiOrInvalid = !fullUrl || fullUrl === "??" || fullUrl === "🪙" || fullUrl === "🚀" || (typeof fullUrl === "string" && fullUrl.length <= 4 && !fullUrl.includes("/"));
+  if (isEmojiOrInvalid) {
+    fullUrl = DEFAULT_TOKEN_LOGO;
   }
 
-  // Check if icon is an image URL, path, IPFS URI, or base64 data URL
-  const isImage = typeof icon === "string" && (
-    icon.startsWith("data:image/") ||
-    icon.startsWith("http://") ||
-    icon.startsWith("https://") ||
-    icon.startsWith("ipfs://") ||
-    icon.startsWith("/uploads/") ||
-    icon.startsWith("uploads/") ||
-    /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(icon)
-  );
-
-  if (isImage) {
-    let fullUrl = icon;
-    // Map IPFS protocol URI to public gateway
+  // Map IPFS protocol URI to public gateway
+  if (typeof fullUrl === "string") {
     if (fullUrl.startsWith("ipfs://")) {
       fullUrl = fullUrl.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/");
     }
-    // Map production host uploads to local if running on localhost
     if (isLocalhost && fullUrl.includes("web.hotelsbazzar.com/uploads/")) {
       fullUrl = fullUrl.replace(/https?:\/\/web\.hotelsbazzar\.com\/uploads\//, "/uploads/");
     }
     if (fullUrl.startsWith("uploads/")) {
       fullUrl = "/" + fullUrl;
     }
-    // If running from file:// protocol, strip leading slash
     if (window.location.protocol === "file:" && fullUrl.startsWith("/uploads/")) {
       fullUrl = fullUrl.slice(1);
     }
-
-    return `
-      <div class="relative ${sizeClass} shrink-0 inline-flex items-center justify-center rounded-xl bg-[#121721] border border-gray-800 overflow-hidden shadow-sm">
-        <span class="absolute inset-0 flex items-center justify-center select-none leading-none pointer-events-none">${fallback}</span>
-        <img src="${fullUrl}" alt="${ticker || 'Logo'}" 
-          class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200" 
-          onload="this.style.opacity='1'; if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
-          onerror="this.style.display='none';" />
-      </div>
-    `;
   }
 
-  return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${icon}</span>`;
+  return `
+    <div class="relative ${sizeClass} shrink-0 inline-flex items-center justify-center rounded-xl bg-[#121721] border border-gray-800 overflow-hidden shadow-sm">
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#182335] to-[#101723] text-[#00C805] font-mono font-black text-xs select-none">
+        ${escapeHtml(ticker.slice(0, 3) || 'RH')}
+      </div>
+      <img src="${escapeHtml(fullUrl)}" alt="${escapeHtml(ticker || 'Logo')}" 
+        class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200" 
+        onload="this.style.opacity='1';" 
+        onerror="if(this.src !== window.location.origin + '${DEFAULT_TOKEN_LOGO}') { this.src='${DEFAULT_TOKEN_LOGO}'; } else { this.style.display='none'; }" />
+    </div>
+  `;
 }
 
 // --- Helper: Format and Sanitize Social Media URLs ---
@@ -609,7 +584,7 @@ async function fetchOnChainTokens() {
           } else if (tSym === 'SAMPI') {
             tokenIcon = '/uploads/logo_sampi.png';
           } else {
-            tokenIcon = getFallbackEmoji(tSym, tName);
+            tokenIcon = DEFAULT_TOKEN_LOGO;
           }
         }
 
@@ -735,7 +710,7 @@ async function fetchTokensFromDb() {
         ticker: dbTok.symbol,
         name: dbTok.name,
         description: dbTok.description,
-        icon: dbTok.logo_url || "🚀",
+        icon: dbTok.logo_url || DEFAULT_TOKEN_LOGO,
         creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
         realEth: parseFloat(dbTok.real_eth) || 0.0,
         tokensLeft: (function() {
@@ -2552,7 +2527,19 @@ function setupLogoUploadListeners() {
 
   if (!fileInput || !dropzone) return;
 
-  dropzone.addEventListener("click", () => fileInput.click());
+  // If dropzone is NOT a native <label>, attach click listener; if it IS a <label for="newTokenLogoFile">, clicking naturally triggers fileInput
+  if (dropzone.tagName.toLowerCase() !== "label") {
+    dropzone.addEventListener("click", () => fileInput.click());
+  }
+
+  // Prevent default window drag/drop behavior so dropping an image outside doesn't navigate away
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    window.addEventListener(eventName, (e) => {
+      if (e.target !== fileInput && e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes("Files")) {
+        e.preventDefault();
+      }
+    }, false);
+  });
 
   ['dragenter', 'dragover'].forEach(eventName => {
     dropzone.addEventListener(eventName, (e) => {
@@ -2571,26 +2558,101 @@ function setupLogoUploadListeners() {
   });
 
   dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
+    if (files && files.length > 0) {
       processLogoFile(files[0]);
     }
   });
 
   fileInput.addEventListener("change", (e) => {
-    if (e.target.files.length > 0) {
+    if (e.target.files && e.target.files.length > 0) {
       processLogoFile(e.target.files[0]);
+    }
+  });
+
+  // Support pasting image directly from clipboard (e.g. screenshot or copied image)
+  window.addEventListener("paste", (e) => {
+    const modal = document.getElementById("createTokenModal");
+    if (!modal || modal.classList.contains("hidden")) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf("image") !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          processLogoFile(blob);
+          break;
+        }
+      }
     }
   });
 }
 
+// Pre-upload logo to server/IPFS in background while user fills in other fields
+async function preUploadLogoInBackground(file) {
+  try {
+    const ticker = (document.getElementById("newTokenTicker")?.value || "rh").trim().toLowerCase();
+
+    // 0. Direct Pinata IPFS if configured
+    if (IPFS_CONFIG && IPFS_CONFIG.pinataJwt) {
+      try {
+        const ipfsUrl = await uploadFileToPinataIpfs(file, ticker);
+        if (ipfsUrl) {
+          preUploadedServerUrl = ipfsUrl;
+          console.log("⚡ [Background Upload] Logo pinned directly to IPFS:", ipfsUrl);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // 1. Try PHP cPanel upload.php
+    try {
+      const phpFormData = new FormData();
+      phpFormData.append('logo', file);
+      phpFormData.append('ticker', ticker);
+      const phpRes = await fetch('/upload.php', { method: 'POST', body: phpFormData });
+      if (phpRes.ok) {
+        const phpData = await phpRes.json();
+        if (phpData.success && phpData.logoUrl) {
+          preUploadedServerUrl = phpData.logoUrl;
+          console.log("⚡ [Background Upload] Logo stored via upload.php:", preUploadedServerUrl);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Try Node backend if connected
+    if (isBackendConnected) {
+      try {
+        const formData = new FormData();
+        formData.append('logo', file);
+        formData.append('ticker', ticker);
+        const res = await fetch(`${BACKEND_API_URL}/upload-logo`, { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.logoUrl) {
+            preUploadedServerUrl = data.logoUrl;
+            console.log("⚡ [Background Upload] Logo stored via backend:", preUploadedServerUrl);
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.warn("Background pre-upload error:", err);
+  }
+}
+
 function processLogoFile(file) {
-  if (!file.type.startsWith("image/")) {
+  if (!file.type || !file.type.startsWith("image/")) {
     alert("Please select a valid image file (PNG, JPG, SVG, WebP, GIF)!");
     return;
   }
 
   uploadedLogoFileRaw = file;
+  preUploadedServerUrl = null;
 
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -2601,11 +2663,14 @@ function processLogoFile(file) {
     const previewImg = document.getElementById("logoPreviewImg");
     const fileNameText = document.getElementById("logoFileName");
 
-    previewImg.src = uploadedLogoDataUrl;
-    fileNameText.innerText = file.name;
+    if (previewImg) previewImg.src = uploadedLogoDataUrl;
+    if (fileNameText) fileNameText.innerText = file.name || "uploaded_logo.png";
 
-    dropzone.classList.add("hidden");
-    previewContainer.classList.remove("hidden");
+    if (dropzone) dropzone.classList.add("hidden");
+    if (previewContainer) previewContainer.classList.remove("hidden");
+
+    // Initiate background upload immediately
+    preUploadLogoInBackground(file);
   };
   reader.readAsDataURL(file);
 }
@@ -2614,6 +2679,7 @@ function removeUploadedLogo(e) {
   if (e) e.stopPropagation();
   uploadedLogoDataUrl = null;
   uploadedLogoFileRaw = null;
+  preUploadedServerUrl = null;
 
   const fileInput = document.getElementById("newTokenLogoFile");
   if (fileInput) fileInput.value = "";
@@ -2764,8 +2830,14 @@ async function handleCreateTokenSubmit(e) {
   const formattedDiscord = formatSocialUrl(discord, 'discord');
 
   const directLogoUrl = document.getElementById("newTokenLogoUrl")?.value.trim();
-  const fallbackEmoji = document.getElementById("newTokenFallbackEmoji")?.value.trim();
-  let finalIcon = directLogoUrl || uploadedLogoDataUrl || fallbackEmoji || getFallbackEmoji(ticker, name);
+
+  // Validate that user provided an uploaded image file or direct image URL
+  if (!uploadedLogoFileRaw && !uploadedLogoDataUrl && !directLogoUrl) {
+    alert("Please upload a logo image or enter a direct image URL for your token!");
+    return;
+  }
+
+  let finalIcon = directLogoUrl || preUploadedServerUrl || uploadedLogoDataUrl || DEFAULT_TOKEN_LOGO;
 
   const creatorTax = parseFloat(document.getElementById("creatorTaxInput").value) || 0;
   const holderTax = parseFloat(document.getElementById("holderTaxInput").value) || 0;
@@ -2793,17 +2865,18 @@ async function handleCreateTokenSubmit(e) {
   }
 
   // Handle Logo Upload (Direct IPFS, cPanel PHP with IPFS, Node backend with IPFS, or Canvas Thumbnail)
-  if (uploadedLogoFileRaw && !directLogoUrl) {
+  if (uploadedLogoFileRaw && !directLogoUrl && !preUploadedServerUrl) {
     if (submitBtn) submitBtn.innerText = "Storing Coin Logo on IPFS...";
     let uploadSuccess = false;
 
     // 0. Try direct browser Pinata IPFS upload (if configured in frontend)
-    if (IPFS_CONFIG.pinataJwt) {
+    if (IPFS_CONFIG && IPFS_CONFIG.pinataJwt) {
       try {
         const ipfsDirectUrl = await uploadFileToPinataIpfs(uploadedLogoFileRaw, ticker);
         if (ipfsDirectUrl) {
           finalIcon = ipfsDirectUrl;
           uploadSuccess = true;
+          preUploadedServerUrl = ipfsDirectUrl;
           console.log("🌐 [IPFS] Logo pinned directly to IPFS:", finalIcon);
         }
       } catch (errDirectIpfs) {
@@ -2823,6 +2896,7 @@ async function handleCreateTokenSubmit(e) {
           if (phpData.success && phpData.logoUrl) {
             finalIcon = phpData.logoUrl;
             uploadSuccess = true;
+            preUploadedServerUrl = phpData.logoUrl;
             console.log(`✅ Logo stored via upload.php (Storage: ${phpData.storage || 'local'}):`, finalIcon);
           }
         }
@@ -2845,6 +2919,7 @@ async function handleCreateTokenSubmit(e) {
         if (uploadData.success && uploadData.logoUrl) {
           finalIcon = uploadData.logoUrl;
           uploadSuccess = true;
+          preUploadedServerUrl = uploadData.logoUrl;
           console.log(`✅ Logo stored via Node.js backend (Storage: ${uploadData.storage || 'local'}):`, finalIcon);
         }
       } catch (err) {
@@ -2863,6 +2938,8 @@ async function handleCreateTokenSubmit(e) {
         console.warn("Thumbnail generation error:", e);
       }
     }
+  } else if (preUploadedServerUrl && !directLogoUrl) {
+    finalIcon = preUploadedServerUrl;
   }
 
   try {
@@ -2900,7 +2977,16 @@ async function handleCreateTokenSubmit(e) {
     // Sanitize on-chain metadata URI to avoid massive base64 calldata out-of-gas reverts
     let onChainMetadataUri = finalIcon;
     if (onChainMetadataUri.startsWith("data:image/") && onChainMetadataUri.length > 2500) {
-      onChainMetadataUri = `${window.location.origin}/uploads/logo_${ticker.toLowerCase()}.png`;
+      try {
+        const microThumb = await createCompressedThumbnail(onChainMetadataUri, 48, 48);
+        if (microThumb && microThumb.length < 2500) {
+          onChainMetadataUri = microThumb;
+        } else {
+          onChainMetadataUri = DEFAULT_TOKEN_LOGO;
+        }
+      } catch (e) {
+        onChainMetadataUri = DEFAULT_TOKEN_LOGO;
+      }
     }
 
     // Check if factory requires an upfront creation fee
