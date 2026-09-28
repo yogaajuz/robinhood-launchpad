@@ -66,7 +66,7 @@ $localUrl = $host ? ($protocol . $host . '/uploads/' . $filename) : ('/uploads/'
 // --- Optional: Auto-Pin to Decentralized IPFS via Pinata ---
 // To enable permanent IPFS pinning, paste your Pinata JWT here or set the PINATA_JWT environment variable.
 // Free Pinata signup at: https://app.pinata.cloud
-$pinataJwt = getenv('PINATA_JWT') ?: '';
+$pinataJwt = getenv('PINATA_JWT') ?: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4ZGYxMDkyNC1jYTg4LTQ3MzUtYmQyZi1jMDI5NjI5ZTczMWMiLCJlbWFpbCI6ImFuYW5kYXlvZ2E5ODg4QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJlMjgyMTc3NDRlOGRjNzY4NWYzNCIsInNjb3BlZEtleVNlY3JldCI6IjY4YWYzZmQ3OTE0Yzc2YmQ5N2Y3YmQ0NTUwNjRlZDg3MTI4OGQyODg2OGQzMTU2NjdhYzgwNmUxMTEzNmRlZWMiLCJleHAiOjE4MjIxMDE0MzR9.DmREDFoppa3zfDKecrQ0lq7rhNlBi8A1UgnDtNgeafg';
 
 $ipfsHash = null;
 $ipfsGatewayUrl = null;
