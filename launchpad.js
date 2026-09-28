@@ -104,7 +104,7 @@ let tokens = [
     ticker: "YDOGS",
     name: "Yellow Dogs",
     description: "Newly launched on Robinhood Chain",
-    icon: "/uploads/logo_default.png",
+    icon: "https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru",
     creator: "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
     createdAgo: "Just now",
     realEth: 0.0,
@@ -130,7 +130,7 @@ let tokens = [
     ticker: "SAMPI",
     name: "Sampi metaluh",
     description: "Newly launched on Robinhood Chain",
-    icon: "/uploads/logo_sampi.png",
+    icon: "https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru",
     creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
     createdAgo: "1d ago",
     realEth: 0.000096,
@@ -156,7 +156,7 @@ let tokens = [
     ticker: "SCAT",
     name: "Smille Cat",
     description: "Newly launched on Robinhood Chain",
-    icon: "/uploads/logo_scat.png",
+    icon: "https://gateway.pinata.cloud/ipfs/bafybeih3crzhlp5xpywjo5vetg2nhomvxcngr2o2vhepuizw7ks3a34dsi",
     creator: "0x3b2cB0805eeEB947ae2649a5534065049d16bcb9",
     createdAgo: "2d ago",
     realEth: 0.0,
@@ -205,8 +205,8 @@ let comments = [
   { user: "0x19a2...99f", text: "Reflection dividends are sent straight in native ETH.", time: "25m ago", avatar: "💎" }
 ];
 
-// Default Token Logo Placeholder (Never fallback to random emojis)
-const DEFAULT_TOKEN_LOGO = "/uploads/logo_default.png";
+// Default Token Logo Placeholder (Decentralized IPFS)
+const DEFAULT_TOKEN_LOGO = "https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru";
 
 // --- HTML Escaping & Formatting Helpers ---
 function escapeHtml(str) {
@@ -580,9 +580,9 @@ async function fetchOnChainTokens() {
           if (tUri && (tUri.startsWith('http') || tUri.startsWith('data:') || tUri.startsWith('/uploads'))) {
             tokenIcon = tUri;
           } else if (tSym === 'SCAT') {
-            tokenIcon = '/uploads/logo_scat.png';
+            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeih3crzhlp5xpywjo5vetg2nhomvxcngr2o2vhepuizw7ks3a34dsi';
           } else if (tSym === 'SAMPI') {
-            tokenIcon = '/uploads/logo_sampi.png';
+            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru';
           } else {
             tokenIcon = DEFAULT_TOKEN_LOGO;
           }
