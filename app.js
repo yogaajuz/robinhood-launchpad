@@ -78,7 +78,9 @@ const AMM_PARAMS = {
   TOKENS_FOR_DEX: 200_000_000,
   VIRTUAL_ETH: 0.5,             // Calibrated for 2.0 ETH target
   GRADUATION_ETH_TARGET: 2.0,   // Exactly 2 ETH target
-  PROTOCOL_FEE_PERCENT: 0.01    // 1%
+  PROTOCOL_FEE_PERCENT: 0.01,   // 1%
+  INITIAL_K: 0.5 * 800_000_000, // 400,000,000
+  ETH_PRICE_USD: 4200
 };
 
 // Dynamic URL detection: Works automatically on localhost AND on live cloud hosting!
@@ -459,6 +461,11 @@ function getCurveMath(realEth) {
     progressPercent,
     currentPriceEth
   };
+}
+
+// Backward-compatible alias for bonding curve AMM math
+function calculateTokenAMM(realEth) {
+  return getCurveMath(realEth);
 }
 
 function calculateTokensOut(ethIn, currentRealEth, token) {
@@ -1626,8 +1633,16 @@ function recordTrade(token, tradeData) {
     (activeToken.address && activeToken.address.toLowerCase() === idKey) ||
     (activeToken.curveAddress && activeToken.curveAddress.toLowerCase() === idKey)
   )) {
-    renderTradeHistory();
-    drawChart();
+    try {
+      renderTradeHistory();
+    } catch (e) {
+      console.warn("Trade history render warning:", e);
+    }
+    try {
+      drawChart();
+    } catch (e) {
+      console.warn("Chart render warning:", e);
+    }
   }
 }
 
@@ -1840,11 +1855,12 @@ function generatePriceHistory(token, timeframe) {
   if (!token) return [];
 
   const realEth = Number(token.realEth || 0);
-  const ammInfo = calculateTokenAMM(realEth);
-  const currentPriceUsd = token.priceUsd && token.priceUsd > 0 ? token.priceUsd : (ammInfo.currentPriceEth * AMM_PARAMS.ETH_PRICE_USD);
+  const ammInfo = getCurveMath(realEth);
+  const currentUsdRate = (typeof ethUsdPrice === 'number' && ethUsdPrice > 0) ? ethUsdPrice : (AMM_PARAMS.ETH_PRICE_USD || 4200);
+  const currentPriceUsd = token.priceUsd && token.priceUsd > 0 ? token.priceUsd : (ammInfo.currentPriceEth * currentUsdRate);
 
-  const basePriceEth = (0.5 * 0.5) / AMM_PARAMS.INITIAL_K;
-  const basePriceUsd = basePriceEth * AMM_PARAMS.ETH_PRICE_USD;
+  const basePriceEth = (AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.VIRTUAL_ETH) / ammInfo.k;
+  const basePriceUsd = basePriceEth * currentUsdRate;
 
   let numPoints = 30;
   let intervalMs = 60 * 1000;
