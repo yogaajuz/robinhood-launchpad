@@ -53,6 +53,7 @@ const BONDING_CURVE_ABI = [
   "function token() external view returns (address)",
   "function creator() external view returns (address)",
   "function claimableRewards(address holder) external view returns (uint256)",
+  "function getPendingHolderRewards(address account) external view returns (uint256)",
   "function getTokensOutForEth(uint256 ethIn) external view returns (uint256 tokensOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
   "function getEthOutForTokens(uint256 tokensIn) external view returns (uint256 netEthOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
   "event TokensPurchased(address indexed buyer, uint256 ethPaid, uint256 tokensReceived, uint256 protocolFee, uint256 creatorTax, uint256 holderTax)",
@@ -1233,7 +1234,9 @@ async function refreshUserWalletData() {
 
         const [balWei, rewardWei, realEthWei, isGrad] = await Promise.all([
           tokenContract.balanceOf(userWallet.address).catch(() => 0n),
-          curveContract.claimableRewards(userWallet.address).catch(() => 0n),
+          curveContract.getPendingHolderRewards(userWallet.address)
+            .catch(() => curveContract.claimableRewards(userWallet.address))
+            .catch(() => 0n),
           curveContract.realEthReserve().catch(() => null),
           curveContract.isGraduated().catch(() => null)
         ]);
@@ -1580,9 +1583,17 @@ function renderUserProfile() {
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <button onclick="refreshUserWalletData()" class="px-3.5 py-2 rounded-xl bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 text-gray-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
             <span>🔄</span> <span>Refresh Balances</span>
+          </button>
+          <button onclick="claimAllDividends()" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md ${
+            totalDividendsEth > 0 
+              ? 'bg-gradient-to-r from-cyan-400 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-extrabold shadow-cyan-500/25 animate-pulse' 
+              : 'bg-[#181f2c] hover:bg-[#222b3d] border border-cyan-500/30 text-cyan-300'
+          }">
+            <span>💎</span> <span>Claim Dividend</span>
+            ${totalDividendsEth > 0 ? `<span class="px-1.5 py-0.5 rounded-md bg-black/20 text-black text-[10px] font-mono font-bold">${totalDividendsEth.toFixed(4)} ETH</span>` : ''}
           </button>
           <button onclick="openCreateModal()" class="px-4 py-2 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black text-xs font-bold shadow-md shadow-[#00C805]/20 transition cursor-pointer">
             <span>+ Launch Coin</span>
@@ -1619,16 +1630,26 @@ function renderUserProfile() {
         </div>
 
         <!-- Metric 3: Claimable Dividends (Highlighted!) -->
-        <div class="rounded-2xl bg-gradient-to-br from-cyan-950/40 to-[#121721] border border-cyan-500/30 p-4">
-          <div class="text-[11px] uppercase tracking-wider text-cyan-300 font-bold flex items-center gap-1.5">
-            <span>💎</span> <span>Claimable Dividends</span>
+        <div class="rounded-2xl bg-gradient-to-br from-cyan-950/40 to-[#121721] border border-cyan-500/30 p-4 flex flex-col justify-between">
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-cyan-300 font-bold flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><span>💎</span> <span>Claimable Dividends</span></span>
+              ${totalDividendsEth > 0 ? `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>` : ''}
+            </div>
+            <div class="text-base sm:text-xl font-black font-mono text-cyan-300 mt-1">
+              ${totalDividendsEth.toFixed(4)} ETH
+            </div>
+            <div class="text-xs text-emerald-400 font-mono mt-0.5">
+              ~$${totalDividendsUsd.toFixed(2)} USD Accrued
+            </div>
           </div>
-          <div class="text-base sm:text-xl font-black font-mono text-cyan-300 mt-1">
-            ${totalDividendsEth.toFixed(4)} ETH
-          </div>
-          <div class="text-xs text-emerald-400 font-mono mt-0.5">
-            ~$${totalDividendsUsd.toFixed(2)} USD Accrued
-          </div>
+          <button onclick="claimAllDividends()" class="mt-3 w-full py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            totalDividendsEth > 0 
+              ? 'bg-gradient-to-r from-cyan-400 to-[#00C805] hover:opacity-90 text-black font-extrabold shadow-md shadow-cyan-500/25' 
+              : 'bg-[#181f2c] text-gray-400 border border-gray-700 hover:text-white'
+          }">
+            <span>⚡</span> <span>Claim Dividend</span>
+          </button>
         </div>
 
         <!-- Metric 4: Coins Launched -->
@@ -1644,6 +1665,30 @@ function renderUserProfile() {
           </div>
         </div>
       </div>
+
+      <!-- Unclaimed Dividends Alert Banner -->
+      ${totalDividendsEth > 0 ? `
+        <div class="mt-5 rounded-2xl bg-gradient-to-r from-cyan-950/60 via-[#132832] to-[#121721] border border-cyan-500/50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-emerald-400 text-black flex items-center justify-center text-2xl font-black shrink-0 shadow-lg shadow-cyan-500/30">
+              💎
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="text-sm sm:text-base font-extrabold text-white">Unclaimed ETH Reflection Dividends Ready!</h4>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#00C805]/20 text-[#00C805] border border-[#00C805]/30">Live</span>
+              </div>
+              <p class="text-xs text-gray-300 mt-0.5">
+                You have accrued <span class="font-mono font-bold text-cyan-300">${totalDividendsEth.toFixed(4)} ETH</span> (~$${totalDividendsUsd.toFixed(2)} USD) in passive reflection fees from trading volume on Robinhood Chain.
+              </p>
+            </div>
+          </div>
+          <button onclick="claimAllDividends()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-black text-xs shadow-lg shadow-cyan-500/30 flex items-center justify-center gap-2 transition cursor-pointer transform active:scale-95 shrink-0">
+            <span>⚡</span>
+            <span>Claim All Dividends (${totalDividendsEth.toFixed(4)} ETH)</span>
+          </button>
+        </div>
+      ` : ''}
     </div>
 
     <!-- Coins Launched by You Section -->
@@ -1687,6 +1732,7 @@ function renderUserProfile() {
             const isGraduated = t.graduated || t.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET;
             const tokenTrades = getTradesForToken(t);
             const explorerAddr = t.address || t.curveAddress || '';
+            const reward = userWallet.claimableRewardsEth[t.id] || 0;
 
             return `
               <div class="rounded-2xl bg-[#181f2c] hover:bg-[#1c2434] border border-[#00C805]/30 hover:border-[#00C805]/60 p-4 sm:p-5 transition shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden">
@@ -1753,10 +1799,16 @@ function renderUserProfile() {
                 </div>
 
                 <!-- Right: Quick Actions -->
-                <div class="flex items-center gap-2 shrink-0 self-end lg:self-center">
+                <div class="flex items-center gap-2 shrink-0 self-end lg:self-center flex-wrap">
                   <button onclick="copyTokenShareLinkFor('${t.id}', '${escapeHtml(t.ticker)}')" class="px-3 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-gray-300 hover:text-white border border-gray-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer" title="Copy shareable link">
                     <span>📋</span> <span>Share</span>
                   </button>
+
+                  ${reward > 0 ? `
+                    <button onclick="claimRewards('${t.curveAddress || ''}')" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-400 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-extrabold text-xs shadow-md shadow-cyan-500/20 flex items-center gap-1.5 transition cursor-pointer animate-pulse" title="Claim ${reward.toFixed(5)} ETH in reflection dividends">
+                      <span>💎</span> <span>Claim Dividend (${reward.toFixed(4)} ETH)</span>
+                    </button>
+                  ` : ''}
 
                   ${explorerAddr && explorerAddr.startsWith('0x') ? `
                     <a href="https://robinhoodchain.blockscout.com/address/${explorerAddr}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-gray-400 hover:text-emerald-400 border border-gray-800 text-xs font-mono transition flex items-center gap-1" title="View on Blockscout">
@@ -1868,10 +1920,10 @@ function renderUserProfile() {
                     <button onclick="claimRewards('${t.curveAddress || ''}')" ${reward <= 0 ? 'disabled' : ''} 
                       class="px-3.5 py-2 rounded-xl font-bold text-xs transition transform active:scale-95 cursor-pointer shadow-md ${
                         reward > 0 
-                          ? 'bg-[#00C805] hover:bg-[#00e700] text-black shadow-[#00C805]/20 animate-pulse' 
+                          ? 'bg-gradient-to-r from-cyan-400 via-[#00C805] to-emerald-400 hover:opacity-95 text-black shadow-cyan-500/25 animate-pulse font-extrabold' 
                           : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                       }">
-                      <span>⚡ Claim</span>
+                      <span>⚡ Claim Dividend</span>
                     </button>
 
                     <button onclick="openTokenDetail('${t.id}')" class="px-3 py-2 rounded-xl bg-[#181f2c] hover:bg-[#222b3d] text-gray-300 hover:text-white border border-gray-700 font-bold text-xs transition cursor-pointer" title="Trade this token">
@@ -2106,11 +2158,84 @@ async function claimRewards(targetCurveAddress = null) {
 
     alert(`🎉 Successfully claimed ETH reflection rewards!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
     await refreshUserWalletData();
+    if (typeof renderUserProfile === 'function' && currentView === 'profile') {
+      renderUserProfile();
+    }
   } catch (err) {
     console.error("Claim error:", err);
     alert("Failed to claim rewards: " + (err.reason || err.message || err));
   }
 }
+
+async function claimAllDividends() {
+  if (!userWallet.connected || !browserSigner) {
+    alert("Please connect your Web3 wallet first to claim reflection dividends!");
+    await connectWallet();
+    if (!userWallet.connected || !browserSigner) return;
+  }
+
+  // Find all tokens with positive claimable reflection rewards
+  const eligible = [];
+  for (const t of tokens) {
+    const reward = userWallet.claimableRewardsEth[t.id] || 0;
+    if (reward > 0 && t.curveAddress && t.curveAddress.startsWith("0x")) {
+      eligible.push({ token: t, reward });
+    }
+  }
+
+  if (eligible.length === 0) {
+    let total = 0;
+    for (const key in userWallet.claimableRewardsEth) {
+      total += (userWallet.claimableRewardsEth[key] || 0);
+    }
+    if (total <= 0) {
+      alert("ℹ️ No Claimable Dividends Yet\n\nYou currently have 0.0000 ETH in claimable dividends.\n\nReflection dividends accumulate continuously in native ETH whenever other traders swap tokens on Robinhood Chain!\n\nHold tokens with holder reflection tax to earn continuous passive rewards.");
+      return;
+    }
+  }
+
+  if (eligible.length === 1) {
+    await claimRewards(eligible[0].token.curveAddress);
+    return;
+  }
+
+  const totalEth = eligible.reduce((sum, item) => sum + item.reward, 0);
+  const proceed = confirm(
+    `💎 Claim Reflection Dividends\n\n` +
+    `You have ${eligible.length} tokens with claimable reflection dividends totaling ~${totalEth.toFixed(5)} ETH:\n\n` +
+    eligible.map(item => ` • $${item.token.ticker}: ${item.reward.toFixed(5)} ETH`).join('\n') +
+    `\n\nWould you like to claim them now? (You will confirm each transaction in your Web3 wallet)`
+  );
+
+  if (!proceed) return;
+
+  let successCount = 0;
+  for (let i = 0; i < eligible.length; i++) {
+    const item = eligible[i];
+    try {
+      const curveContract = new ethers.Contract(item.token.curveAddress, BONDING_CURVE_ABI, browserSigner);
+      alert(`[Step ${i + 1}/${eligible.length}]\nPlease confirm transaction in your wallet to claim dividends for $${item.token.ticker} (~${item.reward.toFixed(5)} ETH)...`);
+      const tx = await curveContract.claimHolderRewards();
+      await tx.wait();
+      successCount++;
+    } catch (err) {
+      console.error(`Failed to claim dividends for $${item.token.ticker}:`, err);
+      const cont = confirm(`Claim for $${item.token.ticker} was skipped or rejected: ${(err.reason || err.message || err)}.\n\nContinue claiming remaining tokens?`);
+      if (!cont) break;
+    }
+  }
+
+  if (successCount > 0) {
+    alert(`🎉 Successfully claimed reflection dividends for ${successCount} token(s)!\n\nYour balances will update now.`);
+    await refreshUserWalletData();
+    if (typeof renderUserProfile === 'function' && currentView === 'profile') {
+      renderUserProfile();
+    }
+  }
+}
+
+window.claimRewards = claimRewards;
+window.claimAllDividends = claimAllDividends;
 
 // --- Per-Token Trade Tape & History Management ---
 
