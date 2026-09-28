@@ -269,35 +269,8 @@
 
       </div>
 
-      <!-- Right Side: 2.0 ETH Bonding Curve & Uniswap v4 Migration (5 Cols on PC) -->
+      <!-- Right Side: Instant Swap & Uniswap v4 Migration (5 Cols on PC) -->
       <div class="lg:col-span-5 flex flex-col gap-4">
-
-        <!-- Bonding Curve Progress Meter for 2.0 ETH -->
-        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-1.5">
-              <span class="text-sm">🎯</span>
-              <span class="text-xs font-bold uppercase tracking-wider text-gray-200">Uniswap v4 Graduation</span>
-            </div>
-            <span id="terminalProgressPercent" class="font-mono text-sm font-bold text-[#00C805]">81.0%</span>
-          </div>
-
-          <div class="w-full bg-[#121721] h-3 rounded-full overflow-hidden p-0.5 border border-gray-800">
-            <div id="terminalProgressBar" class="progress-fill h-full rounded-full" style="width: 81.0%"></div>
-          </div>
-
-          <div class="flex items-center justify-between text-[11px] text-gray-400 mt-2">
-            <span id="terminalEthProgress">1.62 / 2.00 ETH Raised</span>
-            <span id="terminalRemainingEth" class="text-purple-400 font-semibold">0.38 ETH to Uniswap v4</span>
-          </div>
-
-          <div class="text-[11px] text-gray-300 mt-3 bg-[#121721] p-3 rounded-xl border border-gray-800/80 leading-relaxed flex items-start gap-2">
-            <span class="text-base">🦄</span>
-            <div>
-              <b>Automated Uniswap v4 Migration:</b> When this curve hits <b>2.00 ETH</b>, the contract triggers Uniswap v4 pool initialization, seeds 200M tokens + ETH full-range liquidity, and burns LP tokens permanently.
-            </div>
-          </div>
-        </div>
 
         <!-- Instant Swap Widget -->
         <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 shadow-xl">
@@ -366,6 +339,33 @@
           <button id="executeSwapBtn" onclick="executeSwap()" class="w-full py-3.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98] cursor-pointer">
             Instant Buy with ETH
           </button>
+        </div>
+
+        <!-- Bonding Curve Progress Meter for 2.0 ETH -->
+        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-sm">🎯</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-gray-200">Uniswap v4 Graduation</span>
+            </div>
+            <span id="terminalProgressPercent" class="font-mono text-sm font-bold text-[#00C805]">81.0%</span>
+          </div>
+
+          <div class="w-full bg-[#121721] h-3 rounded-full overflow-hidden p-0.5 border border-gray-800">
+            <div id="terminalProgressBar" class="progress-fill h-full rounded-full" style="width: 81.0%"></div>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] text-gray-400 mt-2">
+            <span id="terminalEthProgress">1.62 / 2.00 ETH Raised</span>
+            <span id="terminalRemainingEth" class="text-purple-400 font-semibold">0.38 ETH to Uniswap v4</span>
+          </div>
+
+          <div class="text-[11px] text-gray-300 mt-3 bg-[#121721] p-3 rounded-xl border border-gray-800/80 leading-relaxed flex items-start gap-2">
+            <span class="text-base">🦄</span>
+            <div>
+              <b>Automated Uniswap v4 Migration:</b> When this curve hits <b>2.00 ETH</b>, the contract triggers Uniswap v4 pool initialization, seeds 200M tokens + ETH full-range liquidity, and burns LP tokens permanently.
+            </div>
+          </div>
         </div>
 
       </div>
