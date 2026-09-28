@@ -97,10 +97,14 @@ async function main() {
   console.log(`Fee Recipient: ${account.address}`);
   console.log(`Migration Router: ${routerAddress}`);
 
+  const creationFeeEth = process.env.CREATION_FEE_ETH || '0.005';
+  const creationFeeWei = parseEther(creationFeeEth);
+  console.log(`Creation Fee: ${creationFeeEth} ETH (${creationFeeWei} wei)`);
+
   const factoryTxHash = await walletClient.deployContract({
     abi: factoryArtifact.abi,
     bytecode: '0x' + factoryArtifact.bytecode,
-    args: [account.address, routerAddress]
+    args: [account.address, routerAddress, creationFeeWei]
   });
   console.log(`🚀 Factory Deployment TX Sent: ${factoryTxHash}`);
   console.log('Waiting for confirmation...');

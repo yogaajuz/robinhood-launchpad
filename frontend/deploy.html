@@ -62,7 +62,13 @@
       <div>
         <label class="block text-xs font-semibold text-gray-300 mb-1">Protocol Fee Recipient Address</label>
         <input id="feeRecipientInput" placeholder="Connect wallet to auto-fill" class="w-full bg-[#181f2c] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#00C805]">
-        <span class="text-[10px] text-gray-500">Receives the 1.00% protocol trading fees from all bonding curves</span>
+        <span class="text-[10px] text-gray-500">Receives the 1.00% protocol trading fees and upfront creation fees</span>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Upfront Token Creation Fee (ETH)</label>
+        <input id="creationFeeInput" value="0.005" step="0.001" type="number" class="w-full bg-[#181f2c] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#00C805]">
+        <span class="text-[10px] text-gray-500">Upfront fee paid in native ETH to the protocol fee recipient when anyone launches a token</span>
       </div>
 
       <div class="p-3.5 bg-[#181f2c]/50 border border-gray-800 rounded-xl text-xs space-y-1.5 text-gray-300">
@@ -122,7 +128,7 @@
       chainId: '0x1237', // 4663 in hex
       chainName: 'Robinhood Chain Mainnet',
       nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-      rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'],
+      rpcUrls: ['https://robinhood-rpc.publicnode.com', 'https://rpc-robinhood.blockmachine.io'],
       blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
     };
 
@@ -248,13 +254,29 @@
         addLog(`Fee Recipient: ${feeRecipient}`);
         addLog(`Migration Router: ${routerAddress}`);
 
+        const creationFeeEth = document.getElementById("creationFeeInput")?.value || "0.005";
+        const creationFeeWei = ethers.parseEther(creationFeeEth.toString());
+        addLog(`Upfront Creation Fee: ${creationFeeEth} ETH (${creationFeeWei} wei)`);
+
+        // Load fresh compiled artifact from server if available
+        let factoryAbi = artifacts.RobinhoodTokenFactory.abi;
+        let factoryBytecode = artifacts.RobinhoodTokenFactory.bytecode;
+        try {
+          const freshArtifactResp = await fetch('/contracts/artifacts/RobinhoodTokenFactory.json');
+          if (freshArtifactResp.ok) {
+            const freshArtifact = await freshArtifactResp.json();
+            factoryAbi = freshArtifact.abi;
+            factoryBytecode = freshArtifact.bytecode;
+          }
+        } catch (e) {}
+
         const tokenFactoryFactory = new ethers.ContractFactory(
-          artifacts.RobinhoodTokenFactory.abi,
-          artifacts.RobinhoodTokenFactory.bytecode,
+          factoryAbi,
+          factoryBytecode,
           signer
         );
 
-        const factoryContract = await tokenFactoryFactory.deploy(feeRecipient, routerAddress);
+        const factoryContract = await tokenFactoryFactory.deploy(feeRecipient, routerAddress, creationFeeWei);
         addLog(`Transaction submitted: ${factoryContract.deploymentTransaction().hash}`, "text-gray-400");
         addLog("Waiting for block confirmation...");
 

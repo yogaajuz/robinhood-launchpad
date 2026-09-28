@@ -32,10 +32,13 @@ const UNISWAP_V4_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951';
 const FACTORY_ABI = [
   "function createToken(string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps) external payable returns (address tokenAddress, address curveAddress)",
   "function totalLaunches() external view returns (uint256)",
+  "function creationFee() external view returns (uint256)",
+  "function setCreationFee(uint256 _newFee) external",
+  "function feeRecipient() external view returns (address)",
   "function allCurves(uint256 index) external view returns (address)",
   "function tokenToCurve(address token) external view returns (address)",
   "function curveToToken(address curve) external view returns (address)",
-  "event TokenCreated(address indexed tokenAddress, address indexed curveAddress, address indexed creator, string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps, uint256 timestamp)"
+  "event TokenCreated(address indexed tokenAddress, address indexed curveAddress, address indexed creator, string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps, uint256 creationFeePaid, uint256 timestamp)"
 ];
 
 const BONDING_CURVE_ABI = [
@@ -2666,7 +2669,7 @@ function updateTaxSummary() {
   `;
 }
 
-function openCreateModal() {
+async function openCreateModal() {
   document.getElementById("createTokenModal").classList.remove("hidden");
   selectTaxPreset("fair");
   removeUploadedLogo();
@@ -2674,6 +2677,25 @@ function openCreateModal() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+
+  // Query on-chain creation fee from factory if configured
+  try {
+    const factory = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_ABI, rpcProvider);
+    const feeWei = await factory.creationFee();
+    const feeNotice = document.getElementById("createModalFeeNotice");
+    const feeAmount = document.getElementById("createModalFeeAmount");
+    if (feeNotice && feeAmount) {
+      if (feeWei > 0n) {
+        feeAmount.innerText = `${ethers.formatEther(feeWei)} ETH`;
+        feeNotice.classList.remove("hidden");
+      } else {
+        feeNotice.classList.add("hidden");
+      }
+    }
+  } catch (errFee) {
+    // If legacy factory without creationFee method, keep hidden
+    document.getElementById("createModalFeeNotice")?.classList.add("hidden");
+  }
 }
 
 function closeCreateModal() {
@@ -2879,6 +2901,15 @@ async function handleCreateTokenSubmit(e) {
       onChainMetadataUri = `${window.location.origin}/uploads/logo_${ticker.toLowerCase()}.png`;
     }
 
+    // Check if factory requires an upfront creation fee
+    let creationFeeWei = 0n;
+    try {
+      creationFeeWei = await factory.creationFee();
+    } catch (errFee) {
+      creationFeeWei = 0n;
+    }
+    const totalCreationValue = creationFeeWei + devBuyWei;
+
     if (submitBtn) submitBtn.innerText = "Deploying on Robinhood Chain...";
 
     const tx = await factory.createToken(
@@ -2887,7 +2918,7 @@ async function handleCreateTokenSubmit(e) {
       onChainMetadataUri,
       creatorTaxBps,
       holderTaxBps,
-      { value: devBuyWei }
+      { value: totalCreationValue }
     );
 
     if (submitBtn) submitBtn.innerText = "Waiting for Confirmation...";

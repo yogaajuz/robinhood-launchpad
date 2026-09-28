@@ -11,6 +11,7 @@ contract RobinhoodTokenFactory {
     address public owner;
     address public feeRecipient;
     address public migrationRouter;
+    uint256 public creationFee; // Upfront creation fee in wei (e.g. 0.005 ether)
 
     address[] public allCurves;
     mapping(address => address) public tokenToCurve;
@@ -25,18 +26,22 @@ contract RobinhoodTokenFactory {
         string metadataUri,
         uint256 creatorTaxBps,
         uint256 holderTaxBps,
+        uint256 creationFeePaid,
         uint256 timestamp
     );
+
+    event CreationFeeUpdated(uint256 newFee);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not factory owner");
         _;
     }
 
-    constructor(address _feeRecipient, address _migrationRouter) {
+    constructor(address _feeRecipient, address _migrationRouter, uint256 _creationFee) {
         owner = msg.sender;
         feeRecipient = _feeRecipient;
         migrationRouter = _migrationRouter;
+        creationFee = _creationFee;
     }
 
     /**
@@ -55,8 +60,15 @@ contract RobinhoodTokenFactory {
         uint256 holderTaxBps
     ) external payable returns (address tokenAddress, address curveAddress) {
         require(creatorTaxBps + holderTaxBps <= 1000, "Max combined tax is 10%");
+        require(msg.value >= creationFee, "Insufficient creation fee");
 
-        // Deploy bonding curve which internally deploys the RobinhoodToken with tax metadata
+        // 1. Transfer upfront creation fee to protocol feeRecipient
+        if (creationFee > 0) {
+            (bool feeSuccess, ) = feeRecipient.call{value: creationFee}("");
+            require(feeSuccess, "Creation fee transfer failed");
+        }
+
+        // 2. Deploy bonding curve which internally deploys the RobinhoodToken with tax metadata
         RobinhoodBondingCurve curve = new RobinhoodBondingCurve(
             name,
             symbol,
@@ -84,17 +96,24 @@ contract RobinhoodTokenFactory {
             metadataUri,
             creatorTaxBps,
             holderTaxBps,
+            creationFee,
             block.timestamp
         );
 
-        // Optional: If creator sent ETH with deployment, perform an initial instant buy
-        if (msg.value > 0) {
-            curve.buyTokens{value: msg.value}(0);
+        // 3. Optional: Any excess ETH sent above the creation fee is an initial developer buy
+        uint256 devBuyAmount = msg.value - creationFee;
+        if (devBuyAmount > 0) {
+            curve.buyTokens{value: devBuyAmount}(0);
         }
     }
 
     function totalLaunches() external view returns (uint256) {
         return allCurves.length;
+    }
+
+    function setCreationFee(uint256 _newFee) external onlyOwner {
+        creationFee = _newFee;
+        emit CreationFeeUpdated(_newFee);
     }
 
     function setFeeRecipient(address _newRecipient) external onlyOwner {
