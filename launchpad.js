@@ -1,7 +1,7 @@
 /**
  * Robinhood Chain Launchpad - Application Core
  * Arbitrum Orbit L2 (Chain ID 4663 - Robinhood Chain Mainnet)
- * 2.0 ETH Bonding Curve with Uniswap v4 Singleton LP Migration, Real Web3 Wallet & Cloud Sync
+ * 2.0 ETH Bonding Curve with Uniswap v4 LP Migration, Real Web3 Wallet & Cloud Sync
  */
 
 const RH_MAINNET_CONFIG = {
@@ -3068,7 +3068,7 @@ async function handleCreateTokenSubmit(e) {
       `• Curve: ${deployedCurveAddress || 'Created'}\n` +
       `• Tx Hash: ${receipt.hash}\n` +
       `• Explorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}\n\n` +
-      `Graduation Target: 2.0 ETH -> Uniswap v4 Singleton`
+      `Graduation Target: 2.0 ETH -> Uniswap v4`
     );
   } catch (err) {
     console.error("Token creation error:", err);
