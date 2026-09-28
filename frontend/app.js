@@ -3603,6 +3603,14 @@ function createCompressedThumbnail(dataUrl, width = 64, height = 64) {
   });
 }
 
+window.setDevBuyPreset = function(val) {
+  const input = document.getElementById("newTokenDevBuy");
+  if (input) {
+    input.value = val > 0 ? val.toString() : "";
+    input.focus();
+  }
+};
+
 async function handleCreateTokenSubmit(e) {
   e.preventDefault();
 
@@ -3615,7 +3623,13 @@ async function handleCreateTokenSubmit(e) {
   const name = document.getElementById("newTokenName").value.trim();
   const ticker = document.getElementById("newTokenTicker").value.trim().toUpperCase().replace("$", "");
   const desc = document.getElementById("newTokenDesc").value.trim();
-  const devBuyEth = parseFloat(document.getElementById("newTokenDevBuy").value) || 0;
+  const devBuyEth = parseFloat(document.getElementById("newTokenDevBuy")?.value) || 0;
+
+  // Enforce minimum 0.0001 ETH if Sniper Defense (Optional Initial Buy) is used
+  if (devBuyEth > 0 && devBuyEth < 0.0001) {
+    alert("⚠️ Sniper Defense (Initial Buy) minimum is 0.0001 ETH.\n\nPlease enter at least 0.0001 ETH, or clear the field (0) to skip initial buy.");
+    return;
+  }
 
   // Optional Social Media and Community Links
   const website = document.getElementById("newTokenWebsite")?.value.trim() || "";
@@ -3769,7 +3783,7 @@ async function handleCreateTokenSubmit(e) {
     const factory = new ethers.Contract(FACTORY_CONTRACT_ADDRESS, FACTORY_ABI, browserSigner);
     const creatorTaxBps = Math.round(creatorTax * 100);
     const holderTaxBps = Math.round(holderTax * 100);
-    const devBuyWei = devBuyEth > 0 ? ethers.parseEther(devBuyEth.toString()) : 0n;
+    const devBuyWei = devBuyEth >= 0.0001 ? ethers.parseEther(devBuyEth.toString()) : 0n;
 
     // Sanitize on-chain logo URL
     let onChainLogo = finalIcon;
@@ -3864,12 +3878,12 @@ async function handleCreateTokenSubmit(e) {
       rawCreator: userWallet.address,
       creatorAddress: userWallet.address.toLowerCase(),
       createdAgo: "Just now",
-      realEth: devBuyEth > 0 ? devBuyEth : 0.0,
+      realEth: devBuyEth >= 0.0001 ? devBuyEth : 0.0,
       tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE,
       priceEth: 0.00000001,
-      marketCapUsd: Math.round((devBuyEth + 0.05) * ethUsdPrice * 8),
+      marketCapUsd: Math.round(((devBuyEth >= 0.0001 ? devBuyEth : 0) + 0.05) * ethUsdPrice * 8),
       change24h: 0.0,
-      volume24hUsd: devBuyEth * ethUsdPrice,
+      volume24hUsd: devBuyEth >= 0.0001 ? (devBuyEth * ethUsdPrice) : 0,
       graduated: false,
       creatorTax: creatorTax,
       holderTax: holderTax,
@@ -3878,7 +3892,7 @@ async function handleCreateTokenSubmit(e) {
       telegram: formattedTelegram,
       youtube: formattedYoutube,
       discord: formattedDiscord,
-      history: [0.05, devBuyEth > 0 ? devBuyEth : 0.05]
+      history: [0.05, devBuyEth >= 0.0001 ? devBuyEth : 0.05]
     };
 
     // Save to backend database
@@ -3897,7 +3911,7 @@ async function handleCreateTokenSubmit(e) {
             creator: userWallet.address,
             creatorTaxBps: creatorTaxBps,
             holderTaxBps: holderTaxBps,
-            initialEth: devBuyEth,
+            initialEth: devBuyEth >= 0.0001 ? devBuyEth : 0,
             websiteUrl: formattedWebsite,
             twitterUrl: formattedTwitter,
             telegramUrl: formattedTelegram,
