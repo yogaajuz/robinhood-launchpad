@@ -70,11 +70,20 @@ async function handleTradeEvent(log, isBuy, broadcast) {
       });
       if (curveToken) {
         actualTokenId = curveToken;
+        let curveCreator = trader || '0x0000000000000000000000000000000000000000';
+        try {
+          curveCreator = await client.readContract({
+            address: curveAddress,
+            abi: [parseAbiItem('function creator() external view returns (address)')],
+            functionName: 'creator'
+          });
+        } catch (ign) {}
+
         await query(
-          `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, real_eth, tokens_left)
-           VALUES (?, ?, ?, ?, ?, ?, 0.0, 800000000)
+          `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, tokens_left)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 800000000)
            ON CONFLICT(id) DO UPDATE SET curve_address = EXCLUDED.curve_address`,
-          [curveToken, curveAddress, 'Robinhood Token', 'RH', 'Live bonding curve on Robinhood Chain', '🪙']
+          [curveToken, curveAddress, 'Robinhood Token', 'RH', 'Live bonding curve on Robinhood Chain', 'https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru', curveCreator]
         );
         tokenRows = [{ id: curveToken, real_eth: 0.0, volume_24h_usd: 0.0 }];
       }
@@ -115,7 +124,7 @@ async function handleTradeEvent(log, isBuy, broadcast) {
   }
 
   // 3. Update OHLCV Candlestick (1 minute bucket)
-  const now = Math.floor(Date.now() / 60000) * 60; // 1-minute bucket timestamp
+  const now = new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(); // 1-minute bucket timestamp
   const priceUsd = (ethAmount / (tokenAmount || 1)) * 4200;
 
   try {
