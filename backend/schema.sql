@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS tokens (
     holder_tax_bps INTEGER DEFAULT 0,            -- Basis points (e.g. 200 = 2.0%)
     is_graduated BOOLEAN DEFAULT FALSE,          -- True when 2.0 ETH target is reached
     uniswap_v4_pool VARCHAR(66),                 -- Uniswap v4 pool identifier
+    website_url VARCHAR(255),
+    twitter_url VARCHAR(255),
+    telegram_url VARCHAR(255),
+    youtube_url VARCHAR(255),
+    discord_url VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

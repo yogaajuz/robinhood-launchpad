@@ -113,6 +113,11 @@ let tokens = [
     graduated: false,
     creatorTax: 1.0,
     holderTax: 2.0,
+    website: "https://gamestop2.xyz",
+    twitter: "https://x.com/GameStop20",
+    telegram: "https://t.me/GameStop20Robinhood",
+    youtube: "https://youtube.com/@GameStop20",
+    discord: null,
     history: [0.3, 0.6, 0.9, 1.2, 1.45, 1.62]
   },
   {
@@ -134,6 +139,11 @@ let tokens = [
     graduated: false,
     creatorTax: 0.0,
     holderTax: 3.0,
+    website: "https://wsbtoken.org",
+    twitter: "https://x.com/WallStreetBets",
+    telegram: "https://t.me/WallStreetBetsToken",
+    youtube: null,
+    discord: "https://discord.gg/wallstreetbets",
     history: [0.4, 0.8, 1.2, 1.6, 1.82, 1.94]
   },
   {
@@ -155,6 +165,11 @@ let tokens = [
     graduated: false,
     creatorTax: 2.0,
     holderTax: 0.0,
+    website: "https://robinhoodie.io",
+    twitter: "https://x.com/RobinHoodieL2",
+    telegram: "https://t.me/RobinHoodieArmy",
+    youtube: null,
+    discord: null,
     history: [0.2, 0.4, 0.65, 0.85]
   },
   {
@@ -204,6 +219,7 @@ let tokens = [
 // --- State Variables ---
 let activeToken = tokens[0];
 let activeTab = "latest";
+let currentView = "explore";
 let ethUsdPrice = 4200;
 let uploadedLogoDataUrl = null;
 let uploadedLogoFileRaw = null;
@@ -336,6 +352,101 @@ function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = 
   return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${icon}</span>`;
 }
 
+// --- Helper: Format and Sanitize Social Media URLs ---
+function formatSocialUrl(url, type) {
+  if (!url) return null;
+  url = url.trim();
+  if (!url) return null;
+  if (type === 'twitter') {
+    if (url.startsWith('@')) return `https://x.com/${url.slice(1)}`;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://x.com/${url}`;
+  }
+  if (type === 'telegram') {
+    if (url.startsWith('@')) return `https://t.me/${url.slice(1)}`;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://t.me/${url}`;
+  }
+  if (type === 'youtube') {
+    if (url.startsWith('@')) return `https://youtube.com/${url}`;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://youtube.com/${url}`;
+  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `https://${url}`;
+  }
+  return url;
+}
+
+function renderSocialBadgesHtml(token) {
+  if (!token) return '';
+  const badges = [];
+
+  const website = formatSocialUrl(token.website, 'website');
+  const twitter = formatSocialUrl(token.twitter, 'twitter');
+  const telegram = formatSocialUrl(token.telegram, 'telegram');
+  const youtube = formatSocialUrl(token.youtube, 'youtube');
+  const discord = formatSocialUrl(token.discord, 'discord');
+
+  if (website) {
+    badges.push(`
+      <a href="${website}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121721] hover:bg-[#1f283a] border border-gray-800 hover:border-gray-700 text-xs text-gray-200 hover:text-white transition font-medium">
+        <span>🌐</span> <span>Website</span> <span class="text-gray-500 text-[10px]">↗</span>
+      </a>
+    `);
+  }
+  if (twitter) {
+    badges.push(`
+      <a href="${twitter}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121721] hover:bg-[#1f283a] border border-gray-800 hover:border-gray-700 text-xs text-gray-200 hover:text-white transition font-mono font-medium">
+        <span class="font-bold">𝕏</span> <span>Twitter</span> <span class="text-gray-500 text-[10px]">↗</span>
+      </a>
+    `);
+  }
+  if (telegram) {
+    badges.push(`
+      <a href="${telegram}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121721] hover:bg-[#1f283a] border border-gray-800 hover:border-gray-700 text-xs text-sky-400 hover:text-sky-300 transition font-medium">
+        <span>💬</span> <span>Telegram</span> <span class="text-sky-500 text-[10px]">↗</span>
+      </a>
+    `);
+  }
+  if (youtube) {
+    badges.push(`
+      <a href="${youtube}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121721] hover:bg-[#1f283a] border border-gray-800 hover:border-gray-700 text-xs text-red-400 hover:text-red-300 transition font-medium">
+        <span>▶️</span> <span>YouTube</span> <span class="text-red-500 text-[10px]">↗</span>
+      </a>
+    `);
+  }
+  if (discord) {
+    badges.push(`
+      <a href="${discord}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121721] hover:bg-[#1f283a] border border-gray-800 hover:border-gray-700 text-xs text-indigo-400 hover:text-indigo-300 transition font-medium">
+        <span>🎮</span> <span>Discord</span> <span class="text-indigo-500 text-[10px]">↗</span>
+      </a>
+    `);
+  }
+
+  if (badges.length === 0) {
+    return `<div class="text-[11px] text-gray-500 italic">No community links added yet</div>`;
+  }
+
+  return badges.join('');
+}
+
+function renderMiniSocialsHtml(token) {
+  if (!token) return '';
+  const items = [];
+  const website = formatSocialUrl(token.website, 'website');
+  const twitter = formatSocialUrl(token.twitter, 'twitter');
+  const telegram = formatSocialUrl(token.telegram, 'telegram');
+  const youtube = formatSocialUrl(token.youtube, 'youtube');
+  const discord = formatSocialUrl(token.discord, 'discord');
+
+  if (website) items.push(`<a href="${website}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-white" title="Website">🌐</a>`);
+  if (twitter) items.push(`<a href="${twitter}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-white font-bold text-[10px]" title="X / Twitter">𝕏</a>`);
+  if (telegram) items.push(`<a href="${telegram}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-sky-400" title="Telegram">💬</a>`);
+  if (youtube) items.push(`<a href="${youtube}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-red-400" title="YouTube">▶️</a>`);
+  if (discord) items.push(`<a href="${discord}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-indigo-400" title="Discord">🎮</a>`);
+
+  if (items.length === 0) return '';
+  return `<div class="flex items-center gap-1.5 text-xs bg-[#121721] px-2 py-0.5 rounded-lg border border-gray-800 shrink-0">${items.join('')}</div>`;
+}
+
 // --- AMM Math Calculations ---
 function getCurveMath(realEth) {
   const k = AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.TOKENS_FOR_CURVE;
@@ -398,6 +509,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupEventListeners();
   setupLogoUploadListeners();
   drawChart();
+
+  handleHashRouting();
+  window.addEventListener("hashchange", handleHashRouting);
 
   await initBackendSync();
 
@@ -478,6 +592,25 @@ async function fetchOnChainTokens() {
           }
         }
 
+        // Determine token social media links
+        let tokenSocials = {};
+        try {
+          const cachedSocials = localStorage.getItem(`rh_token_socials_${tokenAddr.toLowerCase()}`) || 
+                                localStorage.getItem(`rh_token_socials_${tSym.toUpperCase()}`);
+          if (cachedSocials) tokenSocials = JSON.parse(cachedSocials);
+        } catch (e) {}
+
+        if (tUri && tUri.startsWith('{')) {
+          try {
+            const meta = JSON.parse(tUri);
+            if (meta.website) tokenSocials.website = meta.website;
+            if (meta.twitter) tokenSocials.twitter = meta.twitter;
+            if (meta.telegram) tokenSocials.telegram = meta.telegram;
+            if (meta.youtube) tokenSocials.youtube = meta.youtube;
+            if (meta.discord) tokenSocials.discord = meta.discord;
+          } catch (e) {}
+        }
+
         discovered.push({
           id: tokenAddr,
           address: tokenAddr,
@@ -499,6 +632,11 @@ async function fetchOnChainTokens() {
           graduated: Boolean(isGrad),
           creatorTax: Number(devTax) / 100,
           holderTax: Number(holderTax) / 100,
+          website: tokenSocials.website || null,
+          twitter: tokenSocials.twitter || null,
+          telegram: tokenSocials.telegram || null,
+          youtube: tokenSocials.youtube || null,
+          discord: tokenSocials.discord || null,
           history: [0.1, realEth > 0 ? realEth : 0.1]
         });
       } catch (errInner) {
@@ -591,6 +729,11 @@ async function fetchTokensFromDb() {
         graduated: Boolean(dbTok.is_graduated),
         creatorTax: (dbTok.creator_tax_bps || 0) / 100,
         holderTax: (dbTok.holder_tax_bps || 0) / 100,
+        website: dbTok.website_url || null,
+        twitter: dbTok.twitter_url || null,
+        telegram: dbTok.telegram_url || null,
+        youtube: dbTok.youtube_url || null,
+        discord: dbTok.discord_url || null,
         history: [0.1, parseFloat(dbTok.real_eth) || 0.1]
       }));
 
@@ -718,33 +861,61 @@ async function refreshUserWalletData() {
     const balWei = await browserProvider.getBalance(userWallet.address);
     userWallet.balanceEth = parseFloat(ethers.formatEther(balWei));
 
-    // If active token has on-chain contracts, query real token balance & reflection dividends
-    if (activeToken && activeToken.address && activeToken.address.startsWith("0x")) {
+    // Query all on-chain tokens in parallel
+    const onChainTokens = tokens.filter(t => t.address && t.address.startsWith("0x") && t.curveAddress && t.curveAddress.startsWith("0x"));
+
+    await Promise.all(onChainTokens.map(async (t) => {
       try {
-        const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserProvider);
-        const tokenBal = await tokenContract.balanceOf(userWallet.address);
-        userWallet.holdings[activeToken.id] = parseFloat(ethers.formatEther(tokenBal));
-      } catch (e) {
-        console.warn("Could not query token balance:", e);
-      }
+        const tokenContract = new ethers.Contract(t.address, ERC20_ABI, browserProvider);
+        const curveContract = new ethers.Contract(t.curveAddress, BONDING_CURVE_ABI, browserProvider);
 
-      if (activeToken.curveAddress && activeToken.curveAddress.startsWith("0x")) {
-        try {
-          const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserProvider);
-          const rewardWei = await curveContract.claimableRewards(userWallet.address);
-          userWallet.claimableRewardsEth[activeToken.id] = parseFloat(ethers.formatEther(rewardWei));
+        const [balWei, rewardWei, realEthWei, isGrad] = await Promise.all([
+          tokenContract.balanceOf(userWallet.address).catch(() => 0n),
+          curveContract.claimableRewards(userWallet.address).catch(() => 0n),
+          curveContract.realEthReserve().catch(() => null),
+          curveContract.isGraduated().catch(() => null)
+        ]);
 
-          const realEthWei = await curveContract.realEthReserve();
-          activeToken.realEth = parseFloat(ethers.formatEther(realEthWei));
-          activeToken.graduated = await curveContract.isGraduated();
-        } catch (e) {
-          console.warn("Could not query curve data:", e);
+        userWallet.holdings[t.id] = parseFloat(ethers.formatEther(balWei));
+        userWallet.claimableRewardsEth[t.id] = parseFloat(ethers.formatEther(rewardWei));
+
+        if (realEthWei !== null) {
+          t.realEth = parseFloat(ethers.formatEther(realEthWei));
         }
+        if (isGrad !== null) {
+          t.graduated = Boolean(isGrad);
+        }
+      } catch (e) {
+        console.warn(`Could not refresh data for token ${t.ticker}:`, e);
+      }
+    }));
+
+    // If active token is one of the initial demo tokens and user has no on-chain balance yet, maintain demo holding
+    const hasAnyOnchain = Object.values(userWallet.holdings).some(b => b > 0);
+    if (!hasAnyOnchain) {
+      userWallet.holdings['gme2'] = 450000;
+      userWallet.claimableRewardsEth['gme2'] = 0.045;
+    }
+
+    // Check total claimable rewards to toggle notification badge on nav
+    let totalClaimable = 0;
+    for (const key in userWallet.claimableRewardsEth) {
+      totalClaimable += (userWallet.claimableRewardsEth[key] || 0);
+    }
+    const badge = document.getElementById("navRewardBadge");
+    if (badge) {
+      if (totalClaimable > 0) {
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
       }
     }
 
     renderHeader();
     renderTerminal();
+    if (currentView === "profile") {
+      renderUserProfile();
+    }
   } catch (err) {
     console.warn("Error refreshing wallet data:", err);
   }
@@ -798,6 +969,370 @@ function getTaxBadgeHtml(token) {
   `;
 }
 
+// --- Multi-View Navigation & Routing System ---
+function switchView(viewName, tokenId = null) {
+  currentView = viewName;
+  const viewExplore = document.getElementById("viewExplore");
+  const viewToken = document.getElementById("viewToken");
+  const viewProfile = document.getElementById("viewProfile");
+
+  const navExplore = document.getElementById("navExploreBtn");
+  const navToken = document.getElementById("navTokenBtn");
+  const navProfile = document.getElementById("navProfileBtn");
+
+  const activeClass = "px-3 py-1.5 rounded-full font-bold text-xs bg-[#00C805] text-black shadow-md shadow-[#00C805]/20 transition cursor-pointer flex items-center gap-1.5";
+  const inactiveClass = "px-3 py-1.5 rounded-full font-bold text-xs bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 text-gray-300 transition cursor-pointer flex items-center gap-1.5";
+
+  if (navExplore) navExplore.className = (viewName === 'explore') ? activeClass : inactiveClass;
+  if (navToken) navToken.className = (viewName === 'token') ? activeClass : inactiveClass;
+  if (navProfile) navProfile.className = (viewName === 'profile') ? (activeClass + " relative") : (inactiveClass + " relative");
+
+  if (viewExplore) viewExplore.classList.add("hidden");
+  if (viewToken) viewToken.classList.add("hidden");
+  if (viewProfile) viewProfile.classList.add("hidden");
+
+  if (viewName === "explore") {
+    if (viewExplore) viewExplore.classList.remove("hidden");
+    if (window.location.hash !== "#explore") {
+      history.replaceState(null, "", "#explore");
+    }
+    renderKothBanner();
+    renderTokenGrid();
+  } else if (viewName === "token") {
+    if (viewToken) viewToken.classList.remove("hidden");
+    if (tokenId) {
+      const found = tokens.find(t => t.id === tokenId);
+      if (found) activeToken = found;
+    }
+    if (window.location.hash !== `#token=${activeToken.id}`) {
+      history.replaceState(null, "", `#token=${activeToken.id}`);
+    }
+    const blockscoutLink = document.getElementById("tokenBlockscoutLink");
+    if (blockscoutLink) {
+      blockscoutLink.href = (activeToken.address && activeToken.address.startsWith("0x"))
+        ? `https://robinhoodchain.blockscout.com/token/${activeToken.address}`
+        : "https://robinhoodchain.blockscout.com";
+    }
+    renderTerminal();
+    setTimeout(drawChart, 60);
+    if (userWallet.connected) {
+      refreshUserWalletData();
+    }
+  } else if (viewName === "profile") {
+    if (viewProfile) viewProfile.classList.remove("hidden");
+    if (window.location.hash !== "#profile") {
+      history.replaceState(null, "", "#profile");
+    }
+    renderUserProfile();
+    if (userWallet.connected) {
+      refreshUserWalletData();
+    }
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openTokenDetail(tokenId) {
+  const found = tokens.find(t => t.id === tokenId);
+  if (found) {
+    activeToken = found;
+  }
+  switchView('token', tokenId);
+}
+
+function copyTokenShareLink() {
+  const shareUrl = `${window.location.origin}${window.location.pathname}#token=${activeToken.id}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      alert(`Copied link to $${activeToken.ticker}!\n\n${shareUrl}`);
+    }).catch(() => {
+      prompt("Copy token link:", shareUrl);
+    });
+  } else {
+    prompt("Copy token link:", shareUrl);
+  }
+}
+
+function handleHashRouting() {
+  const hash = window.location.hash;
+  if (hash.startsWith("#token=")) {
+    const tokenId = hash.replace("#token=", "").trim();
+    if (tokenId) {
+      openTokenDetail(tokenId);
+      return;
+    }
+  } else if (hash === "#profile") {
+    switchView("profile");
+    return;
+  }
+  // Default to explore view if hash is #explore or empty
+  if (hash === "#explore" || !hash) {
+    switchView("explore");
+  }
+}
+
+// --- User Profile & Token Holdings Rendering ---
+function renderUserProfile() {
+  const container = document.getElementById("profileContainer");
+  if (!container) return;
+
+  if (!userWallet.connected || !userWallet.address) {
+    container.innerHTML = `
+      <div class="rounded-3xl bg-[#181f2c] border border-[#242e42] p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl">
+        <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#009e04] to-[#00C805] flex items-center justify-center text-4xl mx-auto mb-5 shadow-xl shadow-[#00C805]/30">
+          👤
+        </div>
+        <h2 class="text-2xl font-black text-white">Your Robinhood Chain Portfolio</h2>
+        <p class="text-sm text-gray-400 mt-2 max-w-md mx-auto leading-relaxed">
+          Connect your Web3 wallet (MetaMask, Rabby, or Coinbase Wallet) to view all the tokens you've bought, track your portfolio balances, and claim your native ETH reflection dividends in 1-Click.
+        </p>
+        <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button onclick="connectWallet()" class="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-xl shadow-[#00C805]/25 transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2">
+            <span>⚡</span>
+            <span>Connect Web3 Wallet</span>
+          </button>
+          <button onclick="switchView('explore')" class="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#121721] hover:bg-[#1f2737] text-gray-300 font-bold text-sm border border-gray-700 transition cursor-pointer">
+            Explore Coins First
+          </button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Calculate user portfolio aggregates
+  const shortAddr = userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4);
+  const ethBalance = userWallet.balanceEth || 0;
+  const ethValueUsd = ethBalance * ethUsdPrice;
+
+  // Filter tokens where user holds a balance > 0
+  let ownedTokens = tokens.filter(t => (userWallet.holdings[t.id] || 0) > 0);
+
+  let totalTokenValueUsd = 0;
+  let totalDividendsEth = 0;
+
+  tokens.forEach(t => {
+    const bal = userWallet.holdings[t.id] || 0;
+    const reward = userWallet.claimableRewardsEth[t.id] || 0;
+    if (bal > 0) {
+      totalTokenValueUsd += (bal * t.priceEth * ethUsdPrice);
+    }
+    if (reward > 0) {
+      totalDividendsEth += reward;
+    }
+  });
+
+  const totalPortfolioUsd = ethValueUsd + totalTokenValueUsd;
+  const totalDividendsUsd = totalDividendsEth * ethUsdPrice;
+
+  container.innerHTML = `
+    <!-- User Profile Header Banner -->
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#121721] via-[#182235] to-[#121721] border border-[#242e42] p-6 sm:p-8 shadow-xl">
+      <div class="absolute -right-16 -top-16 w-56 h-56 bg-[#00C805]/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#00C805] to-emerald-300 flex items-center justify-center text-2xl shadow-lg shadow-[#00C805]/20 font-black text-black">
+            ${userWallet.address.slice(2, 4).toUpperCase()}
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl sm:text-2xl font-black text-white font-mono">${shortAddr}</h2>
+              <button onclick="navigator.clipboard.writeText('${userWallet.address}'); alert('Address copied: ${userWallet.address}');" class="px-2 py-0.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono transition cursor-pointer" title="Copy Address">
+                📋 Copy
+              </button>
+              <a href="https://robinhoodchain.blockscout.com/address/${userWallet.address}" target="_blank" class="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-xs font-mono transition flex items-center gap-1">
+                <span>Explorer</span> <span>↗</span>
+              </a>
+            </div>
+            <div class="flex items-center gap-2 mt-1 text-xs text-gray-400">
+              <span class="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Robinhood Chain Mainnet (L2)
+              </span>
+              <span>•</span>
+              <span class="font-mono">Chain ID 4663</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="refreshUserWalletData()" class="px-3.5 py-2 rounded-xl bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 text-gray-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+            <span>🔄</span> <span>Refresh Balances</span>
+          </button>
+          <button onclick="openCreateModal()" class="px-4 py-2 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black text-xs font-bold shadow-md shadow-[#00C805]/20 transition cursor-pointer">
+            <span>+ Launch Coin</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Portfolio Summary 4-Column Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mt-6 pt-5 border-t border-gray-800/80">
+        <!-- Metric 1: ETH Balance -->
+        <div class="rounded-2xl bg-[#121721]/80 border border-gray-800 p-4">
+          <div class="text-[11px] uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+            <span>👛</span> <span>ETH Balance</span>
+          </div>
+          <div class="text-base sm:text-xl font-black font-mono text-white mt-1">
+            ${ethBalance.toFixed(4)} ETH
+          </div>
+          <div class="text-xs text-gray-400 font-mono mt-0.5">
+            ~$${ethValueUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+          </div>
+        </div>
+
+        <!-- Metric 2: Total Portfolio Value -->
+        <div class="rounded-2xl bg-[#121721]/80 border border-gray-800 p-4">
+          <div class="text-[11px] uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+            <span>📈</span> <span>Total Portfolio</span>
+          </div>
+          <div class="text-base sm:text-xl font-black font-mono text-[#00C805] mt-1">
+            $${totalPortfolioUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+          </div>
+          <div class="text-xs text-gray-400 font-mono mt-0.5">
+            Tokens + ETH Combined
+          </div>
+        </div>
+
+        <!-- Metric 3: Claimable Dividends (Highlighted!) -->
+        <div class="rounded-2xl bg-gradient-to-br from-cyan-950/40 to-[#121721] border border-cyan-500/30 p-4">
+          <div class="text-[11px] uppercase tracking-wider text-cyan-300 font-bold flex items-center gap-1.5">
+            <span>💎</span> <span>Claimable Dividends</span>
+          </div>
+          <div class="text-base sm:text-xl font-black font-mono text-cyan-300 mt-1">
+            ${totalDividendsEth.toFixed(4)} ETH
+          </div>
+          <div class="text-xs text-emerald-400 font-mono mt-0.5">
+            ~$${totalDividendsUsd.toFixed(2)} USD Accrued
+          </div>
+        </div>
+
+        <!-- Metric 4: Assets Held -->
+        <div class="rounded-2xl bg-[#121721]/80 border border-gray-800 p-4">
+          <div class="text-[11px] uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+            <span>🪙</span> <span>Coins Held</span>
+          </div>
+          <div class="text-base sm:text-xl font-black font-mono text-white mt-1">
+            ${ownedTokens.length} Assets
+          </div>
+          <div class="text-xs text-gray-400 font-mono mt-0.5">
+            On Robinhood Protocol
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Token Holdings List Section -->
+    <div class="mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <span>🪙</span>
+            <span>Your Purchased Coins & Reflection Rewards</span>
+          </h3>
+          <p class="text-xs text-gray-400">Tokens you have acquired on Robinhood Chain with live bonding curves & reflection dividends</p>
+        </div>
+        <button onclick="switchView('explore')" class="text-xs text-[#00C805] hover:underline font-bold flex items-center gap-1 cursor-pointer">
+          <span>+ Buy More Coins</span> <span>→</span>
+        </button>
+      </div>
+
+      ${ownedTokens.length === 0 ? `
+        <!-- Empty State -->
+        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-8 text-center">
+          <div class="text-4xl mb-3">🪙</div>
+          <h4 class="text-base font-bold text-white">No Token Holdings Found Yet</h4>
+          <p class="text-xs text-gray-400 max-w-md mx-auto mt-1 leading-relaxed">
+            You don't hold any launched tokens on this wallet yet. Browse coins on our 2.0 ETH bonding curve to purchase tokens and begin receiving continuous reflection dividends!
+          </p>
+          <button onclick="switchView('explore')" class="mt-4 px-5 py-2.5 bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs rounded-xl shadow-lg shadow-[#00C805]/20 transition cursor-pointer">
+            Explore All Coins Now
+          </button>
+        </div>
+      ` : `
+        <!-- Token Cards List -->
+        <div class="grid grid-cols-1 gap-4">
+          ${ownedTokens.map(t => {
+            const holding = userWallet.holdings[t.id] || 0;
+            const reward = userWallet.claimableRewardsEth[t.id] || 0;
+            const rewardUsd = (reward * ethUsdPrice).toFixed(2);
+            const tokenValueUsd = (holding * t.priceEth * ethUsdPrice).toFixed(2);
+            const math = getCurveMath(t.realEth);
+
+            return `
+              <div class="rounded-2xl bg-[#181f2c] hover:bg-[#1c2434] border border-[#242e42] hover:border-gray-700 p-4 sm:p-5 transition shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <!-- Left: Token Info & Thumbnail -->
+                <div class="flex items-center gap-3.5 cursor-pointer group" onclick="openTokenDetail('${t.id}')">
+                  ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl shrink-0 group-hover:scale-105 transition-transform", t)}
+                  <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h4 class="text-base font-bold text-white group-hover:text-[#00C805] transition">${t.name}</h4>
+                      <span class="text-xs font-mono font-bold text-[#00C805] px-2 py-0.5 rounded bg-[#00C805]/10 border border-[#00C805]/20">$${t.ticker}</span>
+                      ${getTaxBadgeHtml(t)}
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                      <span>Price: <b class="font-mono text-gray-200">$${(t.priceEth * ethUsdPrice).toFixed(6)}</b></span>
+                      <span>•</span>
+                      <span>MCap: <b class="font-mono text-gray-200">$${t.marketCapUsd.toLocaleString()}</b></span>
+                      <span>•</span>
+                      <span class="text-purple-300 font-semibold">${math.progressPercent.toFixed(1)}% to v4</span>
+                    </div>
+                    <div class="mt-1.5">
+                      ${renderMiniSocialsHtml(t)}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Middle: Your Holdings -->
+                <div class="bg-[#121721] p-3 rounded-xl border border-gray-800 min-w-[180px]">
+                  <div class="text-[10px] uppercase tracking-wider text-gray-400">Your Balance</div>
+                  <div class="text-sm font-black font-mono text-[#00C805] mt-0.5">
+                    ${holding.toLocaleString()} $${t.ticker}
+                  </div>
+                  <div class="text-[11px] font-mono text-gray-400 mt-0.5">
+                    ~$${tokenValueUsd} USD
+                  </div>
+                </div>
+
+                <!-- Right: Dividend Reward Box & Claim Action -->
+                <div class="bg-gradient-to-r from-[#121d2d] to-[#121721] p-3 rounded-xl border border-cyan-500/30 flex items-center justify-between md:justify-end gap-4">
+                  <div>
+                    <div class="text-[10px] uppercase tracking-wider text-cyan-300 font-bold flex items-center gap-1">
+                      <span>💎</span> <span>Claimable Dividend</span>
+                    </div>
+                    <div class="text-sm font-black font-mono text-white mt-0.5">
+                      ${reward.toFixed(5)} ETH
+                    </div>
+                    <div class="text-[10px] font-mono text-emerald-400">
+                      ~$${rewardUsd} USD
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button onclick="claimRewards('${t.curveAddress || ''}')" ${reward <= 0 ? 'disabled' : ''} 
+                      class="px-3.5 py-2 rounded-xl font-bold text-xs transition transform active:scale-95 cursor-pointer shadow-md ${
+                        reward > 0 
+                          ? 'bg-[#00C805] hover:bg-[#00e700] text-black shadow-[#00C805]/20 animate-pulse' 
+                          : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      }">
+                      <span>⚡ Claim</span>
+                    </button>
+
+                    <button onclick="openTokenDetail('${t.id}')" class="px-3 py-2 rounded-xl bg-[#181f2c] hover:bg-[#222b3d] text-gray-300 hover:text-white border border-gray-700 font-bold text-xs transition cursor-pointer" title="Trade this token">
+                      Trade ↗
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function renderKothBanner() {
   const koth = tokens.reduce((prev, current) => (prev.realEth > current.realEth && !prev.graduated) ? prev : current);
   const banner = document.getElementById("kothBanner");
@@ -806,7 +1341,7 @@ function renderKothBanner() {
   const math = getCurveMath(koth.realEth);
 
   banner.innerHTML = `
-    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#181f2c] via-[#1b263b] to-[#181f2c] border border-[#00C805]/30 p-4 sm:p-5 shadow-lg shadow-black/40 cursor-pointer" onclick="selectToken('${koth.id}')">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#181f2c] via-[#1b263b] to-[#181f2c] border border-[#00C805]/30 hover:border-[#00C805]/60 p-4 sm:p-5 shadow-lg shadow-black/40 cursor-pointer transition" onclick="openTokenDetail('${koth.id}')">
       <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-[#00C805]/10 rounded-full blur-3xl pointer-events-none"></div>
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
@@ -839,7 +1374,7 @@ function renderKothBanner() {
             <div class="text-[10px] text-gray-400 mt-1">${koth.realEth.toFixed(2)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(2)} ETH Raised</div>
           </div>
 
-          <button class="px-4 py-2 bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs rounded-xl shadow-md transition transform active:scale-95">
+          <button onclick="event.stopPropagation(); openTokenDetail('${koth.id}')" class="px-4 py-2 bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs rounded-xl shadow-md transition transform active:scale-95 cursor-pointer">
             Quick Trade
           </button>
         </div>
@@ -874,15 +1409,17 @@ function renderTokenGrid() {
     const isSelected = activeToken.id === t.id;
 
     return `
-      <div onclick="selectToken('${t.id}')" class="group relative rounded-xl bg-[#181f2c] hover:bg-[#1f2737] border ${isSelected ? 'border-[#00C805] shadow-lg shadow-[#00C805]/15' : 'border-[#242e42]'} p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between">
+      <div onclick="openTokenDetail('${t.id}')" class="group relative rounded-xl bg-[#181f2c] hover:bg-[#1f2737] border ${isSelected ? 'border-[#00C805] shadow-lg shadow-[#00C805]/15' : 'border-[#242e42]'} hover:border-[#00C805]/60 p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.01]">
         ${t.graduated ? `<div class="absolute top-3 right-3 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><span>🦄</span> Graduated v4</div>` : ''}
 
         <div>
           <div class="flex items-start gap-3">
-            ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
+            <div class="transition-transform group-hover:scale-105">
+              ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
+            </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-bold text-white text-sm truncate">${t.name}</span>
+                <span class="font-bold text-white text-sm truncate group-hover:text-[#00C805] transition-colors">${t.name}</span>
                 <span class="text-[11px] font-mono text-[#00C805] font-semibold">$${t.ticker}</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">By <span class="font-mono text-gray-300">${t.creator}</span></div>
@@ -910,6 +1447,16 @@ function renderTokenGrid() {
           <div class="w-full bg-[#121721] h-1.5 rounded-full overflow-hidden">
             <div class="progress-fill h-full" style="width: ${math.progressPercent}%"></div>
           </div>
+
+          <div class="mt-3 flex items-center justify-between text-[11px] text-gray-400 gap-2">
+            <span class="text-[#00C805] group-hover:underline font-semibold flex items-center gap-1">
+              <span>Trade & View</span> <span>→</span>
+            </span>
+            <div class="flex items-center gap-1.5 flex-wrap justify-end">
+              ${renderMiniSocialsHtml(t)}
+              ${t.holderTax > 0 ? `<span class="text-cyan-300 font-mono text-[10px]">💎 ${t.holderTax}%</span>` : ''}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -924,6 +1471,11 @@ function renderTerminal() {
   document.getElementById("terminalTokenIcon").innerHTML = renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl", activeToken);
   document.getElementById("terminalTokenDesc").innerText = activeToken.description;
   document.getElementById("terminalCreator").innerText = activeToken.creator;
+
+  const socialsContainer = document.getElementById("terminalSocialLinks");
+  if (socialsContainer) {
+    socialsContainer.innerHTML = renderSocialBadgesHtml(activeToken);
+  }
 
   const taxBadgeContainer = document.getElementById("terminalTaxBadge");
   if (taxBadgeContainer) {
@@ -962,53 +1514,81 @@ function renderHolderRewardsCard() {
   const container = document.getElementById("holderRewardsSection");
   if (!container) return;
 
-  if (activeToken.holderTax > 0) {
-    const claimable = userWallet.claimableRewardsEth[activeToken.id] || 0;
-    container.classList.remove("hidden");
-    container.innerHTML = `
-      <div class="rounded-2xl bg-gradient-to-r from-[#181f2c] to-[#14233a] border border-blue-500/30 p-4 shadow-lg">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <span class="text-lg">💎</span>
-            <div>
-              <span class="text-xs font-bold uppercase tracking-wider text-white">Holder ETH Reflection</span>
-              <span class="ml-1 text-[10px] text-blue-400 font-mono font-bold">${activeToken.holderTax}% Tax Distributed</span>
-            </div>
+  const claimable = userWallet.claimableRewardsEth[activeToken.id] || 0;
+  const holding = userWallet.holdings[activeToken.id] || 0;
+  const claimableUsd = (claimable * ethUsdPrice).toFixed(2);
+
+  container.classList.remove("hidden");
+  container.innerHTML = `
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#121c2e] via-[#16233b] to-[#181f2c] border border-cyan-500/40 p-5 shadow-xl">
+      <!-- Ambient Glow Effect -->
+      <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-500/15 rounded-full blur-2xl pointer-events-none"></div>
+
+      <div class="flex items-start justify-between gap-3 relative z-10">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center text-2xl shadow-lg shadow-cyan-500/30 shrink-0">
+            💎
           </div>
-          <span class="text-[10px] text-gray-400">Passive Income</span>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm sm:text-base font-bold text-white tracking-wide">Holder ETH Reflection Dividends</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/40">
+                ${activeToken.holderTax > 0 ? `${activeToken.holderTax}% Tax Distribution` : '0% Tax (Fair Launch)'}
+              </span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">
+              ${activeToken.holderTax > 0 
+                ? `Every trade on $${activeToken.ticker} streams native ETH straight into your claimable rewards.` 
+                : `This token has 0% holder reflection tax. Hold tokens with reflection tax to earn passive ETH.`}
+            </p>
+          </div>
         </div>
 
-        <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-800">
-          <div>
-            <div class="text-[10px] text-gray-400">Your Accrued Rewards:</div>
-            <div class="text-sm font-bold font-mono text-[#00C805]">${claimable.toFixed(4)} ETH <span class="text-[11px] text-gray-400">($${(claimable * ethUsdPrice).toFixed(2)})</span></div>
-          </div>
-
-          <button onclick="claimRewards()" ${claimable <= 0 ? 'disabled' : ''} class="px-3.5 py-1.5 rounded-xl font-bold text-xs ${claimable > 0 ? 'bg-[#00C805] hover:bg-[#00e700] text-black shadow-md shadow-[#00C805]/20 cursor-pointer' : 'bg-gray-800 text-gray-500 cursor-not-allowed'} transition">
-            Claim ETH
-          </button>
+        <div class="hidden sm:block text-right">
+          <span class="text-[10px] uppercase tracking-wider text-gray-400">Your Share</span>
+          <div class="text-xs font-mono font-semibold text-gray-300">${holding > 0 ? `${holding.toLocaleString()} $${activeToken.ticker}` : '0 Tokens'}</div>
         </div>
       </div>
-    `;
-  } else {
-    container.classList.add("hidden");
-  }
+
+      <div class="mt-4 pt-3.5 border-t border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+        <div>
+          <span class="text-[11px] text-gray-400">Available Reflection Reward to Claim:</span>
+          <div class="flex items-baseline gap-2 mt-0.5">
+            <span class="text-xl sm:text-2xl font-black font-mono text-[#00C805]">${claimable.toFixed(5)} ETH</span>
+            <span class="text-xs font-mono text-cyan-300 font-bold">(~$${claimableUsd} USD)</span>
+          </div>
+        </div>
+
+        <button onclick="claimRewards('${activeToken.curveAddress || ''}')" ${claimable <= 0 ? 'disabled' : ''} 
+          class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition transform active:scale-95 cursor-pointer shadow-lg ${
+            claimable > 0 
+              ? 'bg-gradient-to-r from-[#00C805] to-emerald-400 hover:from-[#00e700] hover:to-emerald-300 text-black shadow-[#00C805]/30 animate-pulse' 
+              : 'bg-[#181f2c] border border-gray-700 text-gray-500 cursor-not-allowed'
+          }">
+          <span>⚡</span>
+          <span>${claimable > 0 ? `Claim ${claimable.toFixed(4)} ETH Dividend` : 'No Claimable Dividends'}</span>
+        </button>
+      </div>
+    </div>
+  `;
 }
 
-async function claimRewards() {
+async function claimRewards(targetCurveAddress = null) {
   if (!userWallet.connected || !browserSigner) {
     alert("Please connect your Web3 wallet first!");
     await connectWallet();
     if (!userWallet.connected || !browserSigner) return;
   }
 
-  if (!activeToken.curveAddress || !activeToken.curveAddress.startsWith("0x")) {
-    alert("Rewards can only be claimed for live on-chain tokens.");
+  const curveToClaim = targetCurveAddress || (activeToken && activeToken.curveAddress);
+
+  if (!curveToClaim || !curveToClaim.startsWith("0x")) {
+    alert("Reflection rewards can only be claimed for live on-chain tokens deployed on Robinhood Chain Mainnet.");
     return;
   }
 
   try {
-    const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserSigner);
+    const curveContract = new ethers.Contract(curveToClaim, BONDING_CURVE_ABI, browserSigner);
     const tx = await curveContract.claimHolderRewards();
     alert("Claim transaction submitted! Waiting for block confirmation on Robinhood Chain...");
     const receipt = await tx.wait();
@@ -1503,11 +2083,19 @@ function openCreateModal() {
   document.getElementById("createTokenModal").classList.remove("hidden");
   selectTaxPreset("fair");
   removeUploadedLogo();
+  ['newTokenWebsite', 'newTokenTwitter', 'newTokenTelegram', 'newTokenYoutube', 'newTokenDiscord'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 }
 
 function closeCreateModal() {
   document.getElementById("createTokenModal").classList.add("hidden");
   removeUploadedLogo();
+  ['newTokenWebsite', 'newTokenTwitter', 'newTokenTelegram', 'newTokenYoutube', 'newTokenDiscord'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 }
 
 // --- Helper: Create Tiny Compressed Thumbnail for On-Chain / WebP Storage ---
@@ -1550,6 +2138,19 @@ async function handleCreateTokenSubmit(e) {
   const ticker = document.getElementById("newTokenTicker").value.trim().toUpperCase().replace("$", "");
   const desc = document.getElementById("newTokenDesc").value.trim();
   const devBuyEth = parseFloat(document.getElementById("newTokenDevBuy").value) || 0;
+
+  // Optional Social Media and Community Links
+  const website = document.getElementById("newTokenWebsite")?.value.trim() || "";
+  const twitter = document.getElementById("newTokenTwitter")?.value.trim() || "";
+  const telegram = document.getElementById("newTokenTelegram")?.value.trim() || "";
+  const youtube = document.getElementById("newTokenYoutube")?.value.trim() || "";
+  const discord = document.getElementById("newTokenDiscord")?.value.trim() || "";
+
+  const formattedWebsite = formatSocialUrl(website, 'website');
+  const formattedTwitter = formatSocialUrl(twitter, 'twitter');
+  const formattedTelegram = formatSocialUrl(telegram, 'telegram');
+  const formattedYoutube = formatSocialUrl(youtube, 'youtube');
+  const formattedDiscord = formatSocialUrl(discord, 'discord');
 
   const directLogoUrl = document.getElementById("newTokenLogoUrl")?.value.trim();
   const fallbackEmoji = document.getElementById("newTokenFallbackEmoji")?.value.trim();
@@ -1751,6 +2352,11 @@ async function handleCreateTokenSubmit(e) {
       graduated: false,
       creatorTax: creatorTax,
       holderTax: holderTax,
+      website: formattedWebsite,
+      twitter: formattedTwitter,
+      telegram: formattedTelegram,
+      youtube: formattedYoutube,
+      discord: formattedDiscord,
       history: [0.05, devBuyEth > 0 ? devBuyEth : 0.05]
     };
 
@@ -1770,7 +2376,12 @@ async function handleCreateTokenSubmit(e) {
             creator: userWallet.address,
             creatorTaxBps: creatorTaxBps,
             holderTaxBps: holderTaxBps,
-            initialEth: devBuyEth
+            initialEth: devBuyEth,
+            websiteUrl: formattedWebsite,
+            twitterUrl: formattedTwitter,
+            telegramUrl: formattedTelegram,
+            youtubeUrl: formattedYoutube,
+            discordUrl: formattedDiscord
           })
         });
       } catch (e) {
@@ -1782,6 +2393,15 @@ async function handleCreateTokenSubmit(e) {
       try {
         localStorage.setItem(`rh_token_logo_${deployedTokenAddress.toLowerCase()}`, finalIcon || uploadedLogoDataUrl);
         localStorage.setItem(`rh_token_logo_${ticker.toUpperCase()}`, finalIcon || uploadedLogoDataUrl);
+        const socialsObj = {
+          website: formattedWebsite,
+          twitter: formattedTwitter,
+          telegram: formattedTelegram,
+          youtube: formattedYoutube,
+          discord: formattedDiscord
+        };
+        localStorage.setItem(`rh_token_socials_${deployedTokenAddress.toLowerCase()}`, JSON.stringify(socialsObj));
+        localStorage.setItem(`rh_token_socials_${ticker.toUpperCase()}`, JSON.stringify(socialsObj));
       } catch (e) {}
     }
 
@@ -1790,7 +2410,7 @@ async function handleCreateTokenSubmit(e) {
       localStorage.setItem(LOCAL_STORAGE_TOKENS_KEY, JSON.stringify(tokens));
     } catch (e) {}
     closeCreateModal();
-    selectToken(newToken.id);
+    openTokenDetail(newToken.id);
     renderTokenGrid();
     renderKothBanner();
     await refreshUserWalletData();

@@ -85,6 +85,19 @@ async function initDatabase() {
   if (dbType === 'postgres') {
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     await pgPool.query(schemaSql);
+
+    // Auto-migrate social columns if table already exists in PostgreSQL
+    try {
+      await pgPool.query(`
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS website_url VARCHAR(255);
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS twitter_url VARCHAR(255);
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS telegram_url VARCHAR(255);
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS youtube_url VARCHAR(255);
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS discord_url VARCHAR(255);
+      `);
+    } catch (migErr) {
+      console.warn("Postgres migration notice:", migErr.message);
+    }
   } else {
     // SQLite Tables
     await query(`
@@ -104,9 +117,22 @@ async function initDatabase() {
         holder_tax_bps INTEGER DEFAULT 0,
         is_graduated INTEGER DEFAULT 0,
         uniswap_v4_pool TEXT,
+        website_url TEXT,
+        twitter_url TEXT,
+        telegram_url TEXT,
+        youtube_url TEXT,
+        discord_url TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Auto-migrate for SQLite
+    const cols = ['website_url', 'twitter_url', 'telegram_url', 'youtube_url', 'discord_url'];
+    for (const c of cols) {
+      try {
+        await query(`ALTER TABLE tokens ADD COLUMN ${c} TEXT`);
+      } catch (e) {}
+    }
 
     await query(`
       CREATE TABLE IF NOT EXISTS trades (

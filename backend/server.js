@@ -200,19 +200,73 @@ app.get('/api/tokens', async (req, res) => {
 // 3b. Register / Save Newly Deployed Token
 app.post('/api/tokens', async (req, res) => {
   try {
-    const { id, curveAddress, name, symbol, description, logoUrl, creator, creatorTaxBps, holderTaxBps, initialEth = 0 } = req.body;
+    const {
+      id,
+      curveAddress,
+      name,
+      symbol,
+      description,
+      logoUrl,
+      creator,
+      creatorTaxBps,
+      holderTaxBps,
+      initialEth = 0,
+      websiteUrl = '',
+      twitterUrl = '',
+      telegramUrl = '',
+      youtubeUrl = '',
+      discordUrl = ''
+    } = req.body;
     if (!id || !name || !symbol) {
       return res.status(400).json({ error: 'Missing required token fields' });
     }
     await query(
-      `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps, volume_24h_usd)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET curve_address = excluded.curve_address, real_eth = excluded.real_eth`,
-      [id, curveAddress || '', name, symbol, description || '', logoUrl || '🚀', creator || '', parseFloat(initialEth) || 0, parseInt(creatorTaxBps) || 0, parseInt(holderTaxBps) || 0, (parseFloat(initialEth) || 0) * 4200]
+      `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps, volume_24h_usd, website_url, twitter_url, telegram_url, youtube_url, discord_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET 
+         curve_address = excluded.curve_address, 
+         real_eth = excluded.real_eth,
+         website_url = excluded.website_url,
+         twitter_url = excluded.twitter_url,
+         telegram_url = excluded.telegram_url,
+         youtube_url = excluded.youtube_url,
+         discord_url = excluded.discord_url`,
+      [
+        id,
+        curveAddress || '',
+        name,
+        symbol,
+        description || '',
+        logoUrl || '🚀',
+        creator || '',
+        parseFloat(initialEth) || 0,
+        parseInt(creatorTaxBps) || 0,
+        parseInt(holderTaxBps) || 0,
+        (parseFloat(initialEth) || 0) * 4200,
+        websiteUrl || '',
+        twitterUrl || '',
+        telegramUrl || '',
+        youtubeUrl || '',
+        discordUrl || ''
+      ]
     );
     broadcast({
       type: 'TOKEN_CREATED',
-      token: { id, curveAddress, name, symbol, description, logoUrl, creator, realEth: initialEth }
+      token: {
+        id,
+        curveAddress,
+        name,
+        symbol,
+        description,
+        logoUrl,
+        creator,
+        realEth: initialEth,
+        websiteUrl,
+        twitterUrl,
+        telegramUrl,
+        youtubeUrl,
+        discordUrl
+      }
     });
     res.json({ success: true });
   } catch (err) {

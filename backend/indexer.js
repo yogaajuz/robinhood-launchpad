@@ -47,25 +47,61 @@ async function handleTokenCreated(log, broadcast) {
  * Handle Buy / Sell Trade Event
  */
 async function handleTradeEvent(log, isBuy, broadcast) {
-  const tokenAddress = log.address;
+  const curveAddress = log.address;
   const trader = isBuy ? log.args.buyer : log.args.seller;
   const ethAmount = Number(isBuy ? log.args.ethPaid : log.args.ethReturned) / 1e18;
   const tokenAmount = Number(isBuy ? log.args.tokensReceived : log.args.tokensIn) / 1e18;
   const txHash = log.transactionHash;
 
-  console.log(`📈 [Indexer] Trade on ${tokenAddress.slice(0, 10)}...: ${isBuy ? 'BUY' : 'SELL'} ${ethAmount.toFixed(4)} ETH`);
+  console.log(`📈 [Indexer] Trade on ${curveAddress.slice(0, 10)}...: ${isBuy ? 'BUY' : 'SELL'} ${ethAmount.toFixed(4)} ETH`);
+
+  // 0. Resolve actual token ID from curve address
+  let tokenRows = await query('SELECT id, real_eth, volume_24h_usd FROM tokens WHERE curve_address = ? OR id = ?', [curveAddress, curveAddress]);
+  let actualTokenId = null;
+
+  if (tokenRows && tokenRows.length > 0) {
+    actualTokenId = tokenRows[0].id;
+  } else {
+    try {
+      const curveToken = await client.readContract({
+        address: curveAddress,
+        abi: [parseAbiItem('function token() external view returns (address)')],
+        functionName: 'token'
+      });
+      if (curveToken) {
+        actualTokenId = curveToken;
+        await query(
+          `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, real_eth, tokens_left)
+           VALUES (?, ?, ?, ?, ?, ?, 0.0, 800000000)
+           ON CONFLICT(id) DO UPDATE SET curve_address = EXCLUDED.curve_address`,
+          [curveToken, curveAddress, 'Robinhood Token', 'RH', 'Live bonding curve on Robinhood Chain', '🪙']
+        );
+        tokenRows = [{ id: curveToken, real_eth: 0.0, volume_24h_usd: 0.0 }];
+      }
+    } catch (e) {
+      console.warn("Could not query on-chain token for curve:", e.message);
+    }
+  }
+
+  if (!actualTokenId) {
+    console.warn(`[Indexer] Could not resolve token for curve ${curveAddress}, skipping trade record`);
+    return;
+  }
 
   // 1. Insert into trades table
-  await query(
-    `INSERT INTO trades (token_address, tx_hash, trader, is_buy, eth_amount, token_amount)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(tx_hash) DO NOTHING`,
-    [tokenAddress, txHash, trader, isBuy ? 1 : 0, ethAmount, tokenAmount]
-  );
+  try {
+    await query(
+      `INSERT INTO trades (token_address, tx_hash, trader, is_buy, eth_amount, token_amount)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(tx_hash) DO NOTHING`,
+      [actualTokenId, txHash, trader, isBuy ? 1 : 0, ethAmount, tokenAmount]
+    );
+  } catch (errTrade) {
+    console.warn("[Indexer] Trade record insert warning:", errTrade.message);
+  }
 
   // 2. Update real_eth and volume in tokens table
-  const tokenRows = await query('SELECT real_eth, volume_24h_usd FROM tokens WHERE id = ? OR curve_address = ?', [tokenAddress, tokenAddress]);
-  if (tokenRows.length > 0) {
+  if (tokenRows && tokenRows.length > 0) {
     let currentEth = parseFloat(tokenRows[0].real_eth) || 0;
     let newEth = isBuy ? (currentEth + ethAmount) : Math.max(0.05, currentEth - ethAmount);
     let newVolume = (parseFloat(tokenRows[0].volume_24h_usd) || 0) + (ethAmount * 4200);
@@ -74,7 +110,7 @@ async function handleTradeEvent(log, isBuy, broadcast) {
 
     await query(
       `UPDATE tokens SET real_eth = ?, volume_24h_usd = ?, is_graduated = ? WHERE id = ? OR curve_address = ?`,
-      [newEth, newVolume, isGraduated, tokenAddress, tokenAddress]
+      [newEth, newVolume, isGraduated, actualTokenId, curveAddress]
     );
   }
 
@@ -82,28 +118,32 @@ async function handleTradeEvent(log, isBuy, broadcast) {
   const now = Math.floor(Date.now() / 60000) * 60; // 1-minute bucket timestamp
   const priceUsd = (ethAmount / (tokenAmount || 1)) * 4200;
 
-  const existingCandle = await query(
-    'SELECT * FROM candles WHERE token_address = ? AND timeframe = "1m" AND bucket_timestamp = ?',
-    [tokenAddress, now]
-  );
-
-  if (existingCandle.length > 0) {
-    const c = existingCandle[0];
-    const high = Math.max(c.high_price, priceUsd);
-    const low = Math.min(c.low_price, priceUsd);
-    const close = priceUsd;
-    const vol = c.volume_eth + ethAmount;
-
-    await query(
-      `UPDATE candles SET high_price = ?, low_price = ?, close_price = ?, volume_eth = ? WHERE id = ?`,
-      [high, low, close, vol, c.id]
+  try {
+    const existingCandle = await query(
+      "SELECT * FROM candles WHERE token_address = ? AND timeframe = '1m' AND bucket_timestamp = ?",
+      [actualTokenId, now]
     );
-  } else {
-    await query(
-      `INSERT INTO candles (token_address, timeframe, open_price, high_price, low_price, close_price, volume_eth, bucket_timestamp)
-       VALUES (?, "1m", ?, ?, ?, ?, ?, ?)`,
-      [tokenAddress, priceUsd, priceUsd, priceUsd, priceUsd, ethAmount, now]
-    );
+
+    if (existingCandle && existingCandle.length > 0) {
+      const c = existingCandle[0];
+      const high = Math.max(c.high_price, priceUsd);
+      const low = Math.min(c.low_price, priceUsd);
+      const close = priceUsd;
+      const vol = c.volume_eth + ethAmount;
+
+      await query(
+        `UPDATE candles SET high_price = ?, low_price = ?, close_price = ?, volume_eth = ? WHERE id = ?`,
+        [high, low, close, vol, c.id]
+      );
+    } else {
+      await query(
+        `INSERT INTO candles (token_address, timeframe, open_price, high_price, low_price, close_price, volume_eth, bucket_timestamp)
+         VALUES (?, '1m', ?, ?, ?, ?, ?, ?)`,
+        [actualTokenId, priceUsd, priceUsd, priceUsd, priceUsd, ethAmount, now]
+      );
+    }
+  } catch (errCandle) {
+    console.warn("[Indexer] Candle update warning:", errCandle.message);
   }
 
   // 4. Broadcast live trade event to WebSockets
@@ -111,7 +151,7 @@ async function handleTradeEvent(log, isBuy, broadcast) {
     broadcast({
       type: 'NEW_TRADE',
       trade: {
-        tokenAddress,
+        tokenAddress: actualTokenId,
         trader,
         isBuy,
         ethAmount,
