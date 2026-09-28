@@ -293,8 +293,11 @@ app.get('/api/tokens/:id/trades', async (req, res) => {
   try {
     const { id } = req.params;
     const trades = await query(
-      'SELECT * FROM trades WHERE token_address = ? ORDER BY timestamp DESC LIMIT 30',
-      [id]
+      `SELECT * FROM trades 
+       WHERE LOWER(token_address) = LOWER(?) 
+          OR LOWER(token_address) IN (SELECT LOWER(id) FROM tokens WHERE LOWER(id) = LOWER(?) OR LOWER(symbol) = LOWER(?) OR LOWER(curve_address) = LOWER(?))
+       ORDER BY timestamp DESC LIMIT 50`,
+      [id, id, id, id]
     );
     res.json({ success: true, trades });
   } catch (err) {

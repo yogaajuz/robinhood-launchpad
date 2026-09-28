@@ -233,7 +233,29 @@ let userWallet = {
   claimableRewardsEth: {}
 };
 
-let recentTrades = [];
+let tokenTradesMap = {};
+
+const defaultMockTrades = {
+  gme2: [
+    { type: 'buy', user: '0x71C...a82', rawTrader: '0x71C597e7b686d87192847a8291048b', eth: 0.15, tokens: 4250000, time: '2m ago', txHash: '0x3a4f89d023b184e91c102a' },
+    { type: 'buy', user: '0x3B8...42c', rawTrader: '0x3B892a0e44Cc0532925a3b844Bc454e4438f42c', eth: 0.35, tokens: 9800000, time: '8m ago', txHash: '0x6e2b901a55cd84d2' },
+    { type: 'sell', user: '0x9E1...56f', rawTrader: '0x9E102a0e44Cc0532925a3b844Bc454e4438f56f', eth: 0.08, tokens: 2300000, time: '14m ago', txHash: '0x1c8a33f789ab2201' },
+    { type: 'buy', user: '0xF44...b19', rawTrader: '0xF44d35Cc6634C0532925a3b844Bc454e4438fb19', eth: 0.50, tokens: 14100000, time: '22m ago', txHash: '0x7b9ce510da893321' },
+    { type: 'buy', user: '0x12A...77e', rawTrader: '0x12A5Cc6634C0532925a3b844Bc454e4438f77e', eth: 0.05, tokens: 1420000, time: '35m ago', txHash: '0x4d21aa0388cd5591' },
+    { type: 'sell', user: '0x88D...c31', rawTrader: '0x88Dc31Cc6634C0532925a3b844Bc454e4438fc31', eth: 0.12, tokens: 3450000, time: '48m ago', txHash: '0x99fa66e4412ab349' }
+  ],
+  wsb: [
+    { type: 'buy', user: '0x22c...881', rawTrader: '0x22c90e44Cc0532925a3b844Bc454e4438f881', eth: 0.25, tokens: 6200000, time: '5m ago', txHash: '0x55aa112288cd9910' },
+    { type: 'buy', user: '0x66f...410', rawTrader: '0x66f80e44Cc0532925a3b844Bc454e4438f410', eth: 0.40, tokens: 9900000, time: '19m ago', txHash: '0x77bb334411ee8820' },
+    { type: 'sell', user: '0x10b...392', rawTrader: '0x10b20e44Cc0532925a3b844Bc454e4438f392', eth: 0.15, tokens: 3700000, time: '42m ago', txHash: '0x88cc556633ff7730' }
+  ],
+  hoodie: [
+    { type: 'buy', user: '0x99a...442', rawTrader: '0x99a30e44Cc0532925a3b844Bc454e4438f442', eth: 0.10, tokens: 2500000, time: '12m ago', txHash: '0xaa11778844bb6640' },
+    { type: 'buy', user: '0x33e...219', rawTrader: '0x33e50e44Cc0532925a3b844Bc454e4438f219', eth: 0.20, tokens: 5000000, time: '31m ago', txHash: '0xbb22990055aa8850' }
+  ]
+};
+
+let recentTrades = defaultMockTrades.gme2.slice();
 
 let comments = [
   { user: "0x742d...44e", text: "Robinhood Chain gas is under 0.0001 ETH, super fast L2! ⚡", time: "5m ago", avatar: "🏹" },
@@ -508,6 +530,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderTerminal();
   setupEventListeners();
   setupLogoUploadListeners();
+  fetchTokenTrades(activeToken);
   drawChart();
 
   handleHashRouting();
@@ -737,10 +760,13 @@ async function fetchTokensFromDb() {
         history: [0.1, parseFloat(dbTok.real_eth) || 0.1]
       }));
 
-      activeToken = tokens[0];
+      if (!activeToken || !tokens.some(t => t.id === activeToken.id)) {
+        activeToken = tokens[0];
+      }
       renderKothBanner();
       renderTokenGrid();
       renderTerminal();
+      fetchTokenTrades(activeToken);
       drawChart();
     }
   } catch (err) {
@@ -754,15 +780,21 @@ function connectWebSocket() {
     wsClient.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'NEW_TRADE') {
-        recentTrades.unshift({
-          type: msg.trade.isBuy ? 'buy' : 'sell',
-          user: msg.trade.trader.slice(0, 6) + '...' + msg.trade.trader.slice(-3),
-          eth: msg.trade.ethAmount,
-          tokens: msg.trade.tokenAmount,
-          time: 'Just now'
+        const tr = msg.trade;
+        const targetToken = tokens.find(t => 
+          (t.id && t.id.toLowerCase() === (tr.tokenAddress || '').toLowerCase()) || 
+          (t.address && t.address.toLowerCase() === (tr.tokenAddress || '').toLowerCase()) ||
+          (t.curveAddress && t.curveAddress.toLowerCase() === (tr.tokenAddress || '').toLowerCase())
+        );
+        recordTrade(targetToken || { id: tr.tokenAddress, ticker: 'TOKEN' }, {
+          type: tr.isBuy ? 'buy' : 'sell',
+          user: tr.trader ? (tr.trader.slice(0, 6) + '...' + tr.trader.slice(-4)) : '0x...',
+          rawTrader: tr.trader,
+          eth: Number(tr.ethAmount || 0),
+          tokens: Number(tr.tokenAmount || 0),
+          time: 'Just now',
+          txHash: tr.txHash
         });
-        if (recentTrades.length > 20) recentTrades.pop();
-        renderTradeHistory();
       } else if (msg.type === 'TOKEN_CREATED') {
         fetchTokensFromDb();
       }
@@ -1014,6 +1046,7 @@ function switchView(viewName, tokenId = null) {
         : "https://robinhoodchain.blockscout.com";
     }
     renderTerminal();
+    fetchTokenTrades(activeToken);
     setTimeout(drawChart, 60);
     if (userWallet.connected) {
       refreshUserWalletData();
@@ -1601,29 +1634,230 @@ async function claimRewards(targetCurveAddress = null) {
   }
 }
 
+// --- Per-Token Trade Tape & History Management ---
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return 'Just now';
+  try {
+    const d = new Date(dateString);
+    const now = new Date();
+    const diffSec = Math.floor((now - d) / 1000);
+    if (diffSec < 60) return `${Math.max(1, diffSec)}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}h ago`;
+    const diffDays = Math.floor(diffHour / 24);
+    return `${diffDays}d ago`;
+  } catch (e) {
+    return 'Recently';
+  }
+}
+
+function getTradesForToken(token) {
+  if (!token) return [];
+  const idKey = (token.id || '').toLowerCase();
+  const addrKey = (token.address || '').toLowerCase();
+  const curveKey = (token.curveAddress || '').toLowerCase();
+
+  if (tokenTradesMap[idKey] && tokenTradesMap[idKey].length > 0) return tokenTradesMap[idKey];
+  if (addrKey && tokenTradesMap[addrKey] && tokenTradesMap[addrKey].length > 0) return tokenTradesMap[addrKey];
+  if (curveKey && tokenTradesMap[curveKey] && tokenTradesMap[curveKey].length > 0) return tokenTradesMap[curveKey];
+
+  if (defaultMockTrades[idKey]) return defaultMockTrades[idKey];
+  if (token.ticker && defaultMockTrades[token.ticker.toLowerCase()]) return defaultMockTrades[token.ticker.toLowerCase()];
+
+  return [];
+}
+
+function setTokenTrades(token, tradesList) {
+  if (!token) return;
+  const idKey = (token.id || '').toLowerCase();
+  tokenTradesMap[idKey] = tradesList;
+  if (token.address) {
+    tokenTradesMap[token.address.toLowerCase()] = tradesList;
+  }
+  if (token.curveAddress) {
+    tokenTradesMap[token.curveAddress.toLowerCase()] = tradesList;
+  }
+}
+
+function recordTrade(token, tradeData) {
+  if (!token) return;
+  const idKey = (token.id || token.address || '').toLowerCase();
+  const current = getTradesForToken(token);
+  const updated = [tradeData, ...current.filter(t => !tradeData.txHash || t.txHash !== tradeData.txHash)];
+  if (updated.length > 50) updated.pop();
+  setTokenTrades(token, updated);
+
+  recentTrades = updated;
+
+  if (activeToken && (
+    (activeToken.id && activeToken.id.toLowerCase() === idKey) ||
+    (activeToken.address && activeToken.address.toLowerCase() === idKey) ||
+    (activeToken.curveAddress && activeToken.curveAddress.toLowerCase() === idKey)
+  )) {
+    renderTradeHistory();
+    drawChart();
+  }
+}
+
+async function fetchTokenTrades(token) {
+  if (!token) return;
+  const lookupKey = token.id || token.address;
+  if (!lookupKey) return;
+
+  // 1. Fetch indexed trades from Cloud / Local REST API
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/tokens/${lookupKey}/trades`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.trades) && data.trades.length > 0) {
+        const mapped = data.trades.map(t => ({
+          type: t.is_buy ? 'buy' : 'sell',
+          user: t.trader ? (t.trader.slice(0, 6) + '...' + t.trader.slice(-4)) : '0x...',
+          rawTrader: t.trader,
+          eth: Number(t.eth_amount || 0),
+          tokens: Number(t.token_amount || 0),
+          time: formatTimeAgo(t.timestamp),
+          txHash: t.tx_hash
+        }));
+        setTokenTrades(token, mapped);
+        renderTradeHistory();
+        drawChart();
+        return;
+      }
+    }
+  } catch (e) {
+    // Backend offline or unreachable
+  }
+
+  // 2. Query direct on-chain logs if curve contract is known
+  if (token.curveAddress && token.curveAddress.startsWith('0x') && rpcProvider) {
+    try {
+      const curveContract = new ethers.Contract(token.curveAddress, BONDING_CURVE_ABI, rpcProvider);
+      const currentBlock = await rpcProvider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 3000);
+      const [buys, sells] = await Promise.all([
+        curveContract.queryFilter(curveContract.filters.TokensPurchased(), fromBlock).catch(() => []),
+        curveContract.queryFilter(curveContract.filters.TokensSold(), fromBlock).catch(() => [])
+      ]);
+
+      const onChainTrades = [];
+      for (const b of buys) {
+        onChainTrades.push({
+          type: 'buy',
+          user: b.args.buyer.slice(0, 6) + '...' + b.args.buyer.slice(-4),
+          rawTrader: b.args.buyer,
+          eth: Number(ethers.formatEther(b.args.ethPaid)),
+          tokens: Number(ethers.formatEther(b.args.tokensReceived)),
+          blockNumber: b.blockNumber,
+          txHash: b.transactionHash,
+          time: 'On-chain'
+        });
+      }
+      for (const s of sells) {
+        onChainTrades.push({
+          type: 'sell',
+          user: s.args.seller.slice(0, 6) + '...' + s.args.seller.slice(-4),
+          rawTrader: s.args.seller,
+          eth: Number(ethers.formatEther(s.args.ethReturned)),
+          tokens: Number(ethers.formatEther(s.args.tokensIn)),
+          blockNumber: s.blockNumber,
+          txHash: s.transactionHash,
+          time: 'On-chain'
+        });
+      }
+
+      if (onChainTrades.length > 0) {
+        onChainTrades.sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0));
+        setTokenTrades(token, onChainTrades);
+        renderTradeHistory();
+        drawChart();
+        return;
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  renderTradeHistory();
+}
+
 function renderTradeHistory() {
   const container = document.getElementById("tradeHistoryContainer");
   if (!container) return;
 
-  if (recentTrades.length === 0) {
-    container.innerHTML = `<div class="text-center py-4 text-xs text-gray-500">No on-chain trades yet. Be the first to buy!</div>`;
+  const currentToken = activeToken || tokens[0];
+  const ticker = currentToken ? currentToken.ticker : "TOKEN";
+
+  // Update header badges
+  const tokenBadge = document.getElementById("tradeTapeTokenBadge");
+  if (tokenBadge) {
+    tokenBadge.innerText = `($${ticker})`;
+  }
+
+  const explorerLink = document.getElementById("tradeTapeExplorerLink");
+  if (explorerLink) {
+    const explorerTarget = currentToken.curveAddress || currentToken.address;
+    if (explorerTarget && explorerTarget.startsWith("0x")) {
+      explorerLink.href = `https://robinhoodchain.blockscout.com/address/${explorerTarget}#transactions`;
+      explorerLink.style.display = "inline";
+    } else {
+      explorerLink.href = "https://robinhoodchain.blockscout.com";
+    }
+  }
+
+  const trades = getTradesForToken(currentToken);
+  const countBadge = document.getElementById("tradeTapeCountBadge");
+  if (countBadge) {
+    countBadge.innerText = `${trades.length} ${trades.length === 1 ? 'Trade' : 'Trades'}`;
+  }
+
+  if (trades.length === 0) {
+    container.innerHTML = `
+      <div class="h-full flex flex-col items-center justify-center py-10 text-center text-gray-500">
+        <div class="text-3xl mb-2">⏳</div>
+        <p class="text-xs font-semibold text-gray-300">No trades yet on $${escapeHtml(ticker)}</p>
+        <p class="text-[11px] text-gray-500 mt-1">Be the first to trade on this bonding curve!</p>
+      </div>`;
     return;
   }
 
-  container.innerHTML = recentTrades.map(trade => `
-    <div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-800/60 font-mono">
-      <div class="flex items-center gap-1.5">
-        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${trade.type === 'buy' ? 'bg-[#00C805]/15 text-[#00C805]' : 'bg-[#ff4b4b]/15 text-[#ff4b4b]'}">
-          ${trade.type.toUpperCase()}
-        </span>
-        <span class="text-gray-400">${trade.user}</span>
+  container.innerHTML = trades.map(trade => {
+    const isBuy = trade.type === 'buy';
+    const ethFormatted = typeof trade.eth === 'number' ? trade.eth.toFixed(4) : trade.eth;
+    const tokensFormatted = trade.tokens ? Math.floor(trade.tokens).toLocaleString() : '--';
+    const traderAddr = trade.rawTrader || trade.user;
+    const traderShort = trade.user || (traderAddr.length > 10 ? traderAddr.slice(0, 6) + '...' + traderAddr.slice(-4) : traderAddr);
+
+    return `
+      <div class="flex items-center justify-between text-xs py-2 px-2 border-b border-gray-800/60 font-mono hover:bg-[#1f293d]/50 transition rounded-lg">
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isBuy ? 'bg-[#00C805]/15 text-[#00C805] border border-[#00C805]/30' : 'bg-[#ff4b4b]/15 text-[#ff4b4b] border border-[#ff4b4b]/30'}">
+            ${trade.type.toUpperCase()}
+          </span>
+          <a href="https://robinhoodchain.blockscout.com/address/${escapeHtml(traderAddr)}" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-white hover:underline transition">
+            ${escapeHtml(traderShort)}
+          </a>
+        </div>
+        <div class="text-right">
+          <div class="text-white font-medium flex items-center justify-end gap-1.5">
+            <span>${tokensFormatted} ${escapeHtml(ticker)}</span>
+            <span class="text-gray-500 text-[10px]">(${ethFormatted} ETH)</span>
+          </div>
+          <div class="flex items-center justify-end gap-2 text-[10px] text-gray-500 mt-0.5">
+            <span>${escapeHtml(trade.time || 'Just now')}</span>
+            ${trade.txHash ? `
+              <a href="https://robinhoodchain.blockscout.com/tx/${trade.txHash}" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 hover:underline">
+                tx ↗
+              </a>
+            ` : ''}
+          </div>
+        </div>
       </div>
-      <div class="text-right">
-        <div class="text-white">${trade.eth.toFixed(4)} ETH</div>
-        <div class="text-[10px] text-gray-500">${trade.time}</div>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 function renderComments() {
@@ -1644,70 +1878,419 @@ function renderComments() {
   `).join("");
 }
 
-// --- Chart Rendering on HTML5 Canvas ---
-function drawChart() {
+// --- Interactive Token Chart Engine ---
+
+function formatPriceString(p) {
+  if (p === undefined || p === null || isNaN(p)) return "0.00";
+  if (p >= 1) return p.toFixed(2);
+  if (p >= 0.01) return p.toFixed(4);
+  if (p >= 0.0001) return p.toFixed(6);
+  return p.toFixed(8);
+}
+
+let chartTimeframe = '1m';
+let currentChartData = { points: [] };
+let isChartHoverListenerAttached = false;
+
+window.setChartTimeframe = function(tf) {
+  chartTimeframe = tf;
+  ['1m', '5m', '1h', '1d', 'all'].forEach(t => {
+    const btn = document.getElementById(`tfBtn_${t}`);
+    if (btn) {
+      if (t === tf) {
+        btn.className = "px-2 py-0.5 rounded bg-[#00C805] text-black font-bold cursor-pointer transition shadow";
+      } else {
+        btn.className = "px-2 py-0.5 rounded bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition";
+      }
+    }
+  });
+  drawChart();
+};
+
+function generatePriceHistory(token, timeframe) {
+  if (!token) return [];
+
+  const realEth = Number(token.realEth || 0);
+  const ammInfo = calculateTokenAMM(realEth);
+  const currentPriceUsd = token.priceUsd && token.priceUsd > 0 ? token.priceUsd : (ammInfo.currentPriceEth * AMM_PARAMS.ETH_PRICE_USD);
+
+  const basePriceEth = (0.5 * 0.5) / AMM_PARAMS.INITIAL_K;
+  const basePriceUsd = basePriceEth * AMM_PARAMS.ETH_PRICE_USD;
+
+  let numPoints = 30;
+  let intervalMs = 60 * 1000;
+  let labelFormat = 'time';
+
+  if (timeframe === '5m') {
+    numPoints = 36;
+    intervalMs = 5 * 60 * 1000;
+  } else if (timeframe === '1h') {
+    numPoints = 24;
+    intervalMs = 60 * 60 * 1000;
+  } else if (timeframe === '1d') {
+    numPoints = 30;
+    intervalMs = 24 * 60 * 60 * 1000;
+    labelFormat = 'date';
+  } else if (timeframe === 'all') {
+    numPoints = 40;
+    intervalMs = 12 * 60 * 60 * 1000;
+    labelFormat = 'date';
+  }
+
+  // Stable pseudo-random seed based on token id and timeframe
+  const seedStr = (token.id || token.ticker || 'token') + timeframe;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const pseudoRand = (idx) => {
+    const x = Math.sin(hash + idx * 997.13) * 10000;
+    return x - Math.floor(x);
+  };
+
+  const now = Date.now();
+  const startTime = now - (numPoints - 1) * intervalMs;
+  const points = [];
+
+  const startP = Math.max(basePriceUsd, currentPriceUsd * 0.65);
+  const priceDelta = currentPriceUsd - startP;
+
+  for (let i = 0; i < numPoints; i++) {
+    const progress = i / (numPoints - 1);
+    const t = startTime + i * intervalMs;
+    const easeProgress = Math.pow(progress, 1.4);
+    let p = startP + (priceDelta * easeProgress);
+
+    if (i > 0 && i < numPoints - 1) {
+      const noise = (pseudoRand(i) - 0.48) * 0.04 * (currentPriceUsd || 0.0001);
+      p = Math.max(basePriceUsd * 0.9, p + noise);
+    } else if (i === numPoints - 1) {
+      p = currentPriceUsd;
+    }
+
+    const mcap = p * AMM_PARAMS.TOKENS_FOR_CURVE;
+    const dateObj = new Date(t);
+    let timeStr = "";
+    if (labelFormat === 'date') {
+      timeStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    } else {
+      timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+    }
+
+    points.push({
+      time: t,
+      timeStr,
+      fullTimeStr: dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      price: p,
+      mcap
+    });
+  }
+
+  return points;
+}
+
+function drawChart(hoverIndex = null) {
   const canvas = document.getElementById("priceChartCanvas");
   if (!canvas) return;
 
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width = canvas.parentElement.clientWidth;
-  const height = canvas.height = canvas.parentElement.clientHeight || 260;
+  const parent = canvas.parentElement;
+  if (!parent) return;
 
+  const width = parent.clientWidth;
+  const height = parent.clientHeight || 260;
+  if (width <= 0 || height <= 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
+
+  const ctx = canvas.getContext("2d");
+  if (ctx.resetTransform) {
+    ctx.resetTransform();
+  } else {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, width, height);
 
-  ctx.strokeStyle = "#1f293d";
-  ctx.lineWidth = 1;
-  for (let y = 30; y < height; y += 45) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
+  const currentToken = activeToken || tokens[0];
+  if (!currentToken) return;
+
+  const points = generatePriceHistory(currentToken, chartTimeframe);
+  if (!points || points.length === 0) return;
+
+  const prices = points.map(p => p.price);
+  let minVal = Math.min(...prices);
+  let maxVal = Math.max(...prices);
+  if (minVal === maxVal) {
+    minVal *= 0.95;
+    maxVal *= 1.05;
+  }
+  const paddingY = (maxVal - minVal) * 0.12;
+  minVal -= paddingY;
+  maxVal += paddingY;
+
+  // Update Mini-Bar metrics
+  const headerElem = document.getElementById("chartTokenHeader");
+  if (headerElem) headerElem.innerText = `$${currentToken.ticker} Price Chart`;
+
+  const highElem = document.getElementById("chartHighPrice");
+  if (highElem) highElem.innerText = `$${formatPriceString(maxVal * 1.015)}`;
+
+  const lowElem = document.getElementById("chartLowPrice");
+  if (lowElem) lowElem.innerText = `$${formatPriceString(Math.max(0.00000001, minVal * 0.985))}`;
+
+  const volElem = document.getElementById("chartVolumeDisplay");
+  if (volElem) {
+    const tokenTrades = getTradesForToken(currentToken);
+    const calculatedVol = tokenTrades.reduce((sum, t) => sum + (Number(t.eth || 0) * AMM_PARAMS.ETH_PRICE_USD), 0);
+    const displayVol = currentToken.volume24hUsd || calculatedVol || 18500;
+    volElem.innerText = `$${Math.round(displayVol).toLocaleString()}`;
   }
 
-  const data = activeToken.history && activeToken.history.length > 1 ? activeToken.history : [0.05, activeToken.realEth || 0.05];
-  const minVal = Math.min(...data) * 0.9;
-  const maxVal = Math.max(...data) * 1.1;
+  const paddingLeft = 10;
+  const paddingRight = 68;
+  const paddingTop = 16;
+  const paddingBottom = 22;
 
-  const stepX = width / Math.max(1, data.length - 1);
-  const getY = val => height - 30 - ((val - minVal) / (maxVal - minVal || 1)) * (height - 60);
+  const plotWidth = width - paddingLeft - paddingRight;
+  const plotHeight = height - paddingTop - paddingBottom;
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "rgba(0, 200, 5, 0.35)");
+  const getX = (index) => paddingLeft + (index / (points.length - 1)) * plotWidth;
+  const getY = (val) => paddingTop + plotHeight - ((val - minVal) / (maxVal - minVal)) * plotHeight;
+
+  const mappedPoints = points.map((p, idx) => ({
+    ...p,
+    x: getX(idx),
+    y: getY(p.price)
+  }));
+
+  currentChartData = {
+    points: mappedPoints,
+    minVal,
+    maxVal,
+    width,
+    height,
+    paddingLeft,
+    paddingRight,
+    paddingTop,
+    paddingBottom,
+    plotWidth,
+    plotHeight
+  };
+
+  // 1. Horizontal Grid Lines & Price Labels
+  const numGridLines = 4;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.font = "10px monospace";
+
+  for (let i = 0; i <= numGridLines; i++) {
+    const yRatio = i / numGridLines;
+    const yPos = paddingTop + yRatio * plotHeight;
+    const priceVal = maxVal - yRatio * (maxVal - minVal);
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(36, 46, 66, 0.7)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.moveTo(paddingLeft, yPos);
+    ctx.lineTo(width - paddingRight, yPos);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(156, 163, 175, 0.85)";
+    ctx.fillText("$" + formatPriceString(priceVal), width - 6, yPos);
+  }
+
+  // 2. Vertical Grid Lines & Time Labels
+  const numTimeLabels = Math.min(5, points.length);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i < numTimeLabels; i++) {
+    const ptIdx = Math.round(i * (points.length - 1) / (numTimeLabels - 1));
+    const pt = mappedPoints[ptIdx];
+    if (!pt) continue;
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(36, 46, 66, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.moveTo(pt.x, paddingTop);
+    ctx.lineTo(pt.x, paddingTop + plotHeight);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(107, 114, 128, 0.9)";
+    ctx.fillText(pt.timeStr, pt.x, height - paddingBottom + 5);
+  }
+
+  // 3. Gradient Fill
+  const gradient = ctx.createLinearGradient(0, paddingTop, 0, paddingTop + plotHeight);
+  gradient.addColorStop(0, "rgba(0, 200, 5, 0.28)");
+  gradient.addColorStop(0.7, "rgba(0, 200, 5, 0.08)");
   gradient.addColorStop(1, "rgba(0, 200, 5, 0.0)");
 
   ctx.beginPath();
-  ctx.moveTo(0, getY(data[0]));
-  for (let i = 1; i < data.length; i++) {
-    const x = i * stepX;
-    const y = getY(data[i]);
-    ctx.lineTo(x, y);
+  ctx.moveTo(mappedPoints[0].x, mappedPoints[0].y);
+  for (let i = 1; i < mappedPoints.length; i++) {
+    const prev = mappedPoints[i - 1];
+    const curr = mappedPoints[i];
+    const cpX = (prev.x + curr.x) / 2;
+    ctx.bezierCurveTo(cpX, prev.y, cpX, curr.y, curr.x, curr.y);
   }
-  ctx.lineTo(width, height);
-  ctx.lineTo(0, height);
+  ctx.lineTo(mappedPoints[mappedPoints.length - 1].x, paddingTop + plotHeight);
+  ctx.lineTo(mappedPoints[0].x, paddingTop + plotHeight);
   ctx.closePath();
   ctx.fillStyle = gradient;
   ctx.fill();
 
+  // 4. Glowing Stroke
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 200, 5, 0.65)";
+  ctx.shadowBlur = 8;
   ctx.beginPath();
-  ctx.moveTo(0, getY(data[0]));
-  for (let i = 1; i < data.length; i++) {
-    const x = i * stepX;
-    const y = getY(data[i]);
-    ctx.lineTo(x, y);
+  ctx.moveTo(mappedPoints[0].x, mappedPoints[0].y);
+  for (let i = 1; i < mappedPoints.length; i++) {
+    const prev = mappedPoints[i - 1];
+    const curr = mappedPoints[i];
+    const cpX = (prev.x + curr.x) / 2;
+    ctx.bezierCurveTo(cpX, prev.y, cpX, curr.y, curr.x, curr.y);
   }
   ctx.strokeStyle = "#00C805";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
+  ctx.restore();
 
-  const lastX = width;
-  const lastY = getY(data[data.length - 1]);
-  ctx.beginPath();
-  ctx.arc(lastX - 4, lastY, 6, 0, Math.PI * 2);
-  ctx.fillStyle = "#00C805";
-  ctx.fill();
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // 5. Point Beacon or Hover Indicator
+  if (hoverIndex === null) {
+    const lastPt = mappedPoints[mappedPoints.length - 1];
+    ctx.beginPath();
+    ctx.arc(lastPt.x, lastPt.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0, 200, 5, 0.25)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(lastPt.x, lastPt.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = "#00C805";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    const hoverPt = mappedPoints[hoverIndex];
+    if (hoverPt) {
+      // Crosshair lines
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(0, 200, 5, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(hoverPt.x, paddingTop);
+      ctx.lineTo(hoverPt.x, paddingTop + plotHeight);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, hoverPt.y);
+      ctx.lineTo(width - paddingRight, hoverPt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Point circle
+      ctx.beginPath();
+      ctx.arc(hoverPt.x, hoverPt.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 200, 5, 0.3)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(hoverPt.x, hoverPt.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = "#00C805";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Right axis price pill
+      ctx.fillStyle = "#00C805";
+      const pillW = 64;
+      const pillH = 16;
+      ctx.fillRect(width - paddingRight + 2, hoverPt.y - pillH / 2, pillW, pillH);
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("$" + formatPriceString(hoverPt.price), width - paddingRight + 2 + pillW / 2, hoverPt.y);
+    }
+  }
+
+  setupChartHoverListeners();
+}
+
+function setupChartHoverListeners() {
+  const canvas = document.getElementById("priceChartCanvas");
+  const tooltip = document.getElementById("chartTooltip");
+  const tooltipPrice = document.getElementById("chartTooltipPrice");
+  const tooltipTime = document.getElementById("chartTooltipTime");
+
+  if (!canvas || !tooltip || isChartHoverListenerAttached) return;
+  isChartHoverListenerAttached = true;
+
+  const handleMove = (clientX, clientY) => {
+    if (!currentChartData.points || currentChartData.points.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = clientX - rect.left;
+
+    let closestIdx = 0;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < currentChartData.points.length; i++) {
+      const dist = Math.abs(currentChartData.points[i].x - mouseX);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIdx = i;
+      }
+    }
+
+    const pt = currentChartData.points[closestIdx];
+    drawChart(closestIdx);
+
+    if (tooltipPrice) {
+      tooltipPrice.innerHTML = `
+        <div class="text-[#00C805] font-bold text-xs">$${formatPriceString(pt.price)}</div>
+        <div class="text-[10px] text-gray-400 font-mono">MCap: $${Math.round(pt.mcap).toLocaleString()}</div>
+      `;
+    }
+    if (tooltipTime) {
+      tooltipTime.innerText = pt.fullTimeStr || pt.timeStr;
+    }
+
+    const tooltipWidth = 140;
+    let tipLeft = pt.x + 12;
+    if (tipLeft + tooltipWidth > canvas.parentElement.clientWidth) {
+      tipLeft = pt.x - tooltipWidth - 12;
+    }
+    let tipTop = Math.max(10, pt.y - 45);
+
+    tooltip.style.left = `${tipLeft}px`;
+    tooltip.style.top = `${tipTop}px`;
+    tooltip.classList.remove("hidden");
+  };
+
+  const handleLeave = () => {
+    tooltip.classList.add("hidden");
+    drawChart(null);
+  };
+
+  canvas.addEventListener("mousemove", (e) => handleMove(e.clientX, e.clientY));
+  canvas.addEventListener("mouseleave", handleLeave);
+  canvas.addEventListener("touchmove", (e) => {
+    if (e.touches && e.touches[0]) {
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+  canvas.addEventListener("touchend", handleLeave);
 }
 
 // --- Swap Interaction Logic ---
@@ -1871,12 +2454,14 @@ async function executeSwap() {
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
 
-      recentTrades.unshift({
+      recordTrade(activeToken, {
         type: "buy",
-        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
+        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
+        rawTrader: userWallet.address,
         eth: inputAmount,
         tokens: Math.floor(inputAmount * 28000000),
-        time: "Just now"
+        time: "Just now",
+        txHash: receipt.hash
       });
 
       alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
@@ -1924,12 +2509,14 @@ async function executeSwap() {
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
 
-      recentTrades.unshift({
+      recordTrade(activeToken, {
         type: "sell",
-        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-3),
+        user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
+        rawTrader: userWallet.address,
         eth: inputAmount * 0.00000003,
         tokens: Math.floor(inputAmount),
-        time: "Just now"
+        time: "Just now",
+        txHash: receipt.hash
       });
 
       alert(`✅ Instant Sell Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
@@ -2440,6 +3027,7 @@ async function selectToken(tokenId) {
   if (found) {
     activeToken = found;
     renderTerminal();
+    await fetchTokenTrades(activeToken);
     drawChart();
     if (userWallet.connected) {
       await refreshUserWalletData();

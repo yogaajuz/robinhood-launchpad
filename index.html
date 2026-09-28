@@ -238,22 +238,44 @@
         <div id="holderRewardsSection"></div>
 
         <!-- Interactive Chart Canvas -->
-        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col justify-between h-[300px]">
+        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col justify-between h-[360px] shadow-lg">
           <div class="flex items-center justify-between text-xs pb-2 border-b border-gray-800">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-white">Price Action</span>
-              <span class="text-[10px] px-2 py-0.5 bg-[#00C805]/10 text-[#00C805] rounded-full font-mono">Live L2 Feed</span>
+              <span class="font-bold text-white flex items-center gap-1.5">
+                <span>📈</span> <span id="chartTokenHeader">$GME2 Price Chart</span>
+              </span>
+              <span class="text-[10px] px-2 py-0.5 bg-[#00C805]/10 text-[#00C805] rounded-full font-mono flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#00C805] animate-ping"></span> Live L2
+              </span>
             </div>
-            <div class="flex items-center gap-1 text-[11px] font-mono">
-              <span class="px-2 py-0.5 rounded bg-gray-800 text-white font-bold cursor-pointer">1M</span>
-              <span class="px-2 py-0.5 rounded text-gray-400 hover:text-white cursor-pointer">5M</span>
-              <span class="px-2 py-0.5 rounded text-gray-400 hover:text-white cursor-pointer">1H</span>
-              <span class="px-2 py-0.5 rounded text-gray-400 hover:text-white cursor-pointer">1D</span>
+            <!-- Timeframe Selector -->
+            <div id="chartTimeframeSelector" class="flex items-center gap-1 text-[11px] font-mono">
+              <button onclick="setChartTimeframe('1m')" id="tfBtn_1m" class="px-2 py-0.5 rounded bg-[#00C805] text-black font-bold cursor-pointer transition">1M</button>
+              <button onclick="setChartTimeframe('5m')" id="tfBtn_5m" class="px-2 py-0.5 rounded bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition">5M</button>
+              <button onclick="setChartTimeframe('1h')" id="tfBtn_1h" class="px-2 py-0.5 rounded bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition">1H</button>
+              <button onclick="setChartTimeframe('1d')" id="tfBtn_1d" class="px-2 py-0.5 rounded bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition">1D</button>
+              <button onclick="setChartTimeframe('all')" id="tfBtn_all" class="px-2 py-0.5 rounded bg-gray-800 text-gray-400 hover:text-white cursor-pointer transition">ALL</button>
             </div>
           </div>
 
-          <div class="relative flex-1 w-full mt-2">
-            <canvas id="priceChartCanvas" class="w-full h-full"></canvas>
+          <!-- Chart Metrics Mini-Bar -->
+          <div class="flex items-center justify-between text-[11px] font-mono py-1 px-1 text-gray-400 border-b border-gray-800/40">
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500">24h High:</span> <span id="chartHighPrice" class="text-gray-200 font-semibold">$0.000155</span>
+              <span class="text-gray-500">24h Low:</span> <span id="chartLowPrice" class="text-gray-200 font-semibold">$0.000034</span>
+            </div>
+            <div>
+              <span class="text-gray-500">24h Vol:</span> <span id="chartVolumeDisplay" class="text-[#00C805] font-bold">$38,400</span>
+            </div>
+          </div>
+
+          <div class="relative flex-1 w-full mt-2 min-h-[220px]">
+            <canvas id="priceChartCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+            <!-- Chart Tooltip -->
+            <div id="chartTooltip" class="hidden absolute pointer-events-none z-20 bg-[#121721]/95 border border-[#00C805]/50 px-2.5 py-1.5 rounded-xl shadow-xl text-xs font-mono">
+              <div id="chartTooltipPrice" class="font-bold text-white">$0.000000</div>
+              <div id="chartTooltipTime" class="text-[10px] text-gray-400">Time</div>
+            </div>
           </div>
         </div>
 
@@ -366,13 +388,19 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
 
       <!-- Live Trade Tape -->
-      <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col h-[280px]">
+      <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col h-[340px] shadow-lg">
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#00C805] animate-ping"></span>
-            <span class="text-xs font-bold uppercase tracking-wider text-white">Live Trade Tape</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+              <span>Live Trade Tape</span>
+              <span id="tradeTapeTokenBadge" class="text-[#00C805] font-mono font-bold">($GME2)</span>
+            </span>
           </div>
-          <span class="text-[10px] text-gray-500 font-mono">Robinhood Chain L2</span>
+          <div class="flex items-center gap-2">
+            <span id="tradeTapeCountBadge" class="text-[10px] text-gray-400 font-mono bg-gray-800/80 px-2 py-0.5 rounded-full">0 Trades</span>
+            <a id="tradeTapeExplorerLink" href="https://robinhoodchain.blockscout.com" target="_blank" class="text-[10px] text-emerald-400 hover:underline font-mono">Tx Explorer ↗</a>
+          </div>
         </div>
         <div id="tradeHistoryContainer" class="flex-1 overflow-y-auto pr-1"></div>
       </div>
