@@ -1517,7 +1517,6 @@ function renderTerminal() {
   document.getElementById("userTokenBalance").innerText = `${tokenHolding.toLocaleString()} $${activeToken.ticker}`;
 
   setSwapMode(swapMode);
-  renderHolderRewardsCard();
   renderTradeHistory();
   renderComments();
   updateSwapEstimate();
@@ -1525,65 +1524,10 @@ function renderTerminal() {
 
 function renderHolderRewardsCard() {
   const container = document.getElementById("holderRewardsSection");
-  if (!container) return;
-
-  const claimable = userWallet.claimableRewardsEth[activeToken.id] || 0;
-  const holding = userWallet.holdings[activeToken.id] || 0;
-  const claimableUsd = (claimable * ethUsdPrice).toFixed(2);
-
-  container.classList.remove("hidden");
-  container.innerHTML = `
-    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#121c2e] via-[#16233b] to-[#181f2c] border border-cyan-500/40 p-5 shadow-xl">
-      <!-- Ambient Glow Effect -->
-      <div class="absolute -top-12 -right-12 w-36 h-36 bg-cyan-500/15 rounded-full blur-2xl pointer-events-none"></div>
-
-      <div class="flex items-start justify-between gap-3 relative z-10">
-        <div class="flex items-center gap-3">
-          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center text-2xl shadow-lg shadow-cyan-500/30 shrink-0">
-            💎
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h3 class="text-sm sm:text-base font-bold text-white tracking-wide">Holder ETH Reflection Dividends</h3>
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/40">
-                ${activeToken.holderTax > 0 ? `${activeToken.holderTax}% Tax Distribution` : '0% Tax (Fair Launch)'}
-              </span>
-            </div>
-            <p class="text-xs text-gray-400 mt-0.5">
-              ${activeToken.holderTax > 0 
-                ? `Every trade on $${activeToken.ticker} streams native ETH straight into your claimable rewards.` 
-                : `This token has 0% holder reflection tax. Hold tokens with reflection tax to earn passive ETH.`}
-            </p>
-          </div>
-        </div>
-
-        <div class="hidden sm:block text-right">
-          <span class="text-[10px] uppercase tracking-wider text-gray-400">Your Share</span>
-          <div class="text-xs font-mono font-semibold text-gray-300">${holding > 0 ? `${holding.toLocaleString()} $${activeToken.ticker}` : '0 Tokens'}</div>
-        </div>
-      </div>
-
-      <div class="mt-4 pt-3.5 border-t border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-        <div>
-          <span class="text-[11px] text-gray-400">Available Reflection Reward to Claim:</span>
-          <div class="flex items-baseline gap-2 mt-0.5">
-            <span class="text-xl sm:text-2xl font-black font-mono text-[#00C805]">${claimable.toFixed(5)} ETH</span>
-            <span class="text-xs font-mono text-cyan-300 font-bold">(~$${claimableUsd} USD)</span>
-          </div>
-        </div>
-
-        <button onclick="claimRewards('${activeToken.curveAddress || ''}')" ${claimable <= 0 ? 'disabled' : ''} 
-          class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition transform active:scale-95 cursor-pointer shadow-lg ${
-            claimable > 0 
-              ? 'bg-gradient-to-r from-[#00C805] to-emerald-400 hover:from-[#00e700] hover:to-emerald-300 text-black shadow-[#00C805]/30 animate-pulse' 
-              : 'bg-[#181f2c] border border-gray-700 text-gray-500 cursor-not-allowed'
-          }">
-          <span>⚡</span>
-          <span>${claimable > 0 ? `Claim ${claimable.toFixed(4)} ETH Dividend` : 'No Claimable Dividends'}</span>
-        </button>
-      </div>
-    </div>
-  `;
+  if (container) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+  }
 }
 
 async function claimRewards(targetCurveAddress = null) {
@@ -2961,11 +2905,7 @@ async function handleCreateTokenSubmit(e) {
     // 2. Verify that the Factory Contract has deployed bytecode on-chain
     const factoryCode = await browserProvider.getCode(FACTORY_CONTRACT_ADDRESS);
     if (!factoryCode || factoryCode === "0x" || factoryCode === "0x0") {
-      alert(
-        `⚠️ Factory Contract Not Deployed Yet!\n\n` +
-        `The factory address (${FACTORY_CONTRACT_ADDRESS}) does not have contract bytecode on Robinhood Chain Mainnet yet.\n\n` +
-        `👉 If you are the platform owner, please visit:\nhttps://${window.location.host}/deploy.html\n\nto deploy the Factory Contract in 1-Click with your MetaMask! Once deployed, coins can be created immediately.`
-      );
+      alert("⚠️ Protocol contracts are currently undergoing maintenance. Please try again shortly.");
       return;
     }
 
