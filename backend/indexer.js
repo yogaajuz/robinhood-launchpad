@@ -8,7 +8,7 @@ const { query } = require('./db.js');
 require('dotenv').config();
 
 const RPC_URL = process.env.ROBINHOOD_RPC_URL || 'https://robinhood-rpc.publicnode.com';
-const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0xC1C1E61a2b8b604551ba3770bc6248707fBf1f58';
+const FACTORY_ADDRESS = process.env.FACTORY_CONTRACT_ADDRESS || process.env.FACTORY_ADDRESS || '0xD7d41a4E8EA876078227697c1C973fE92a8BCBBa';
 
 const client = createPublicClient({
   transport: http(RPC_URL)
