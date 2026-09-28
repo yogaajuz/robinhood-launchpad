@@ -436,10 +436,16 @@
             </button>
           </div>
 
-          <!-- Fallback Emoji input if user has no image -->
-          <div class="flex items-center gap-2 mt-2">
-            <span class="text-[10px] text-gray-500">Or use an emoji if you don't have an image:</span>
-            <input id="newTokenFallbackEmoji" placeholder="🚀" class="w-12 bg-[#121721] rounded-lg px-2 py-1 text-center text-white border border-gray-800 focus:outline-none focus:border-[#00C805]">
+          <!-- Fallback Emoji or Direct URL input -->
+          <div class="mt-2.5 pt-2.5 border-t border-gray-800/80 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400">Fallback Emoji:</span>
+              <input id="newTokenFallbackEmoji" placeholder="🚀" class="w-12 bg-[#121721] rounded-lg px-2 py-1 text-center text-white border border-gray-800 focus:outline-none focus:border-[#00C805] text-xs">
+            </div>
+            <div>
+              <div class="text-[10px] text-gray-400 mb-1">Or paste Direct Image URL (IPFS, Imgur, Discord, etc.):</div>
+              <input id="newTokenLogoUrl" type="url" placeholder="https://... (PNG, JPG, WebP, GIF)" class="w-full bg-[#121721] rounded-xl px-3 py-1.5 text-white border border-gray-800 focus:outline-none focus:border-[#00C805] text-xs font-mono">
+            </div>
           </div>
         </div>
 

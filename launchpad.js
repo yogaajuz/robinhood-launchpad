@@ -225,14 +225,69 @@ let comments = [
   { user: "0x19a2...99f", text: "Reflection dividends are sent straight in native ETH.", time: "25m ago", avatar: "💎" }
 ];
 
-// --- Helper: Render Token Icon ---
-function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl") {
-  if (!icon) return `<span class="${sizeClass} flex items-center justify-center">🚀</span>`;
-  if (icon.startsWith("data:image/") || icon.startsWith("http://") || icon.startsWith("https://") || icon.startsWith("/uploads/")) {
-    const fullUrl = (icon.startsWith("/uploads/") && isLocalhost) ? `http://localhost:3001${icon}` : icon;
-    return `<img src="${fullUrl}" alt="Logo" class="${sizeClass} object-cover rounded-xl border border-gray-800 shadow-sm" />`;
+// --- Helper: Get Token Fallback Emoji ---
+function getFallbackEmoji(ticker = "", name = "") {
+  const s = ((ticker || "") + " " + (name || "")).toUpperCase();
+  if (s.includes("SAMPI") || s.includes("COW") || s.includes("BULL") || s.includes("METALUH")) return "🐮";
+  if (s.includes("SCAT") || s.includes("CAT") || s.includes("KITTY") || s.includes("SMILLE")) return "🐱";
+  if (s.includes("DOG") || s.includes("SHIB") || s.includes("INU")) return "🐶";
+  if (s.includes("PEPE") || s.includes("FROG")) return "🐸";
+  if (s.includes("GME") || s.includes("GAME")) return "🎮";
+  if (s.includes("WSB") || s.includes("DIAMOND")) return "💎";
+  if (s.includes("HOOD") || s.includes("ROBIN")) return "🏹";
+  if (s.includes("MOON") || s.includes("ROCKET")) return "🚀";
+  if (s.includes("BEAR")) return "🐻";
+  if (s.includes("LION")) return "🦁";
+  if (s.includes("PUMP")) return "📈";
+  return "🪙";
+}
+
+// --- Helper: Render Token Icon with Instant Zero-Loading Dual Layer ---
+function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = null) {
+  const ticker = tokenObj?.ticker || "";
+  const name = tokenObj?.name || "";
+  const fallback = getFallbackEmoji(ticker, name);
+
+  if (!icon) {
+    return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${fallback}</span>`;
   }
-  return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800">${icon}</span>`;
+
+  // Check if icon is an image URL, path, or base64 data URL
+  const isImage = typeof icon === "string" && (
+    icon.startsWith("data:image/") ||
+    icon.startsWith("http://") ||
+    icon.startsWith("https://") ||
+    icon.startsWith("/uploads/") ||
+    icon.startsWith("uploads/") ||
+    /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(icon)
+  );
+
+  if (isImage) {
+    let fullUrl = icon;
+    // Map production host uploads to local if running on localhost
+    if (isLocalhost && fullUrl.includes("web.hotelsbazzar.com/uploads/")) {
+      fullUrl = fullUrl.replace(/https?:\/\/web\.hotelsbazzar\.com\/uploads\//, "/uploads/");
+    }
+    if (fullUrl.startsWith("uploads/")) {
+      fullUrl = "/" + fullUrl;
+    }
+    // If running from file:// protocol, strip leading slash
+    if (window.location.protocol === "file:" && fullUrl.startsWith("/uploads/")) {
+      fullUrl = fullUrl.slice(1);
+    }
+
+    return `
+      <div class="relative ${sizeClass} shrink-0 inline-flex items-center justify-center rounded-xl bg-[#121721] border border-gray-800 overflow-hidden shadow-sm">
+        <span class="absolute inset-0 flex items-center justify-center select-none leading-none pointer-events-none">${fallback}</span>
+        <img src="${fullUrl}" alt="${ticker || 'Logo'}" 
+          class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200" 
+          onload="this.style.opacity='1'; if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
+          onerror="this.style.display='none';" />
+      </div>
+    `;
+  }
+
+  return `<span class="${sizeClass} flex items-center justify-center p-2 rounded-xl bg-[#121721] border border-gray-800 select-none">${icon}</span>`;
 }
 
 // --- AMM Math Calculations ---
@@ -361,6 +416,22 @@ async function fetchOnChainTokens() {
         const marketCapUsd = Math.round(currentTotalEth * ethUsdPrice * 2.5);
         const volume24hUsd = Math.round(realEth * ethUsdPrice + 350);
 
+        // Determine best token logo / icon
+        const cachedLogo = localStorage.getItem(`rh_token_logo_${tokenAddr.toLowerCase()}`) || 
+                           localStorage.getItem(`rh_token_logo_${tSym.toUpperCase()}`);
+        let tokenIcon = cachedLogo;
+        if (!tokenIcon) {
+          if (tUri && (tUri.startsWith('http') || tUri.startsWith('data:') || tUri.startsWith('/uploads'))) {
+            tokenIcon = tUri;
+          } else if (tSym === 'SCAT') {
+            tokenIcon = '/uploads/logo_scat.png';
+          } else if (tSym === 'SAMPI') {
+            tokenIcon = '/uploads/logo_sampi.png';
+          } else {
+            tokenIcon = getFallbackEmoji(tSym, tName);
+          }
+        }
+
         discovered.push({
           id: tokenAddr,
           address: tokenAddr,
@@ -368,7 +439,7 @@ async function fetchOnChainTokens() {
           name: tName,
           ticker: tSym,
           description: `Verified bonding curve on Robinhood Chain Mainnet`,
-          icon: tUri && (tUri.startsWith('http') || tUri.startsWith('data:')) ? tUri : (tSym === 'SCAT' ? '🐱' : (tSym === 'SAMPI' ? '🐮' : '🚀')),
+          icon: tokenIcon,
           creator: creator.slice(0, 6) + '...' + creator.slice(-4),
           createdAgo: i === count - 1 ? 'Just now' : `${count - i}h ago`,
           createdAtTimestamp: Date.now() - (count - 1 - i) * 600000,
@@ -694,7 +765,7 @@ function renderKothBanner() {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
           <div class="relative">
-            ${renderTokenIconHtml(koth.icon, "w-14 h-14 text-4xl")}
+            ${renderTokenIconHtml(koth.icon, "w-14 h-14 text-4xl", koth)}
             <span class="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold">👑 KOTH</span>
           </div>
           <div>
@@ -762,7 +833,7 @@ function renderTokenGrid() {
 
         <div>
           <div class="flex items-start gap-3">
-            ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0")}
+            ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="font-bold text-white text-sm truncate">${t.name}</span>
@@ -804,7 +875,7 @@ function renderTerminal() {
 
   document.getElementById("terminalTokenName").innerText = activeToken.name;
   document.getElementById("terminalTokenTicker").innerText = `$${activeToken.ticker}`;
-  document.getElementById("terminalTokenIcon").innerHTML = renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl");
+  document.getElementById("terminalTokenIcon").innerHTML = renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl", activeToken);
   document.getElementById("terminalTokenDesc").innerText = activeToken.description;
   document.getElementById("terminalCreator").innerText = activeToken.creator;
 
@@ -1393,6 +1464,33 @@ function closeCreateModal() {
   removeUploadedLogo();
 }
 
+// --- Helper: Create Tiny Compressed Thumbnail for On-Chain / WebP Storage ---
+function createCompressedThumbnail(dataUrl, width = 64, height = 64) {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) return resolve(dataUrl);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        try {
+          const webpData = canvas.toDataURL("image/webp", 0.75);
+          if (webpData && webpData.length < 2500) return resolve(webpData);
+        } catch (e) {}
+        resolve(canvas.toDataURL("image/jpeg", 0.65));
+      } catch (err) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 async function handleCreateTokenSubmit(e) {
   e.preventDefault();
 
@@ -1407,8 +1505,9 @@ async function handleCreateTokenSubmit(e) {
   const desc = document.getElementById("newTokenDesc").value.trim();
   const devBuyEth = parseFloat(document.getElementById("newTokenDevBuy").value) || 0;
 
+  const directLogoUrl = document.getElementById("newTokenLogoUrl")?.value.trim();
   const fallbackEmoji = document.getElementById("newTokenFallbackEmoji")?.value.trim();
-  let finalIcon = uploadedLogoDataUrl || fallbackEmoji || "🚀";
+  let finalIcon = directLogoUrl || uploadedLogoDataUrl || fallbackEmoji || getFallbackEmoji(ticker, name);
 
   const creatorTax = parseFloat(document.getElementById("creatorTaxInput").value) || 0;
   const holderTax = parseFloat(document.getElementById("holderTaxInput").value) || 0;
@@ -1435,21 +1534,60 @@ async function handleCreateTokenSubmit(e) {
     submitBtn.innerText = "Confirm in MetaMask...";
   }
 
-  // Upload logo to server if available
-  if (isBackendConnected && uploadedLogoFileRaw) {
+  // Handle Logo Upload (cPanel PHP, Node backend, or Canvas Thumbnail)
+  if (uploadedLogoFileRaw && !directLogoUrl) {
+    if (submitBtn) submitBtn.innerText = "Uploading Coin Logo...";
+    let uploadSuccess = false;
+
+    // 1. Try Namecheap cPanel native upload.php
     try {
-      const formData = new FormData();
-      formData.append('logo', uploadedLogoFileRaw);
-      const uploadRes = await fetch(`${BACKEND_API_URL}/upload-logo`, {
-        method: 'POST',
-        body: formData
-      });
-      const uploadData = await uploadRes.json();
-      if (uploadData.success && uploadData.logoUrl) {
-        finalIcon = uploadData.logoUrl;
+      const phpFormData = new FormData();
+      phpFormData.append('logo', uploadedLogoFileRaw);
+      phpFormData.append('ticker', ticker);
+      const phpRes = await fetch('/upload.php', { method: 'POST', body: phpFormData });
+      if (phpRes.ok) {
+        const phpData = await phpRes.json();
+        if (phpData.success && phpData.logoUrl) {
+          finalIcon = phpData.logoUrl;
+          uploadSuccess = true;
+          console.log("✅ Logo uploaded via upload.php:", finalIcon);
+        }
       }
-    } catch (err) {
-      console.warn("Could not upload to server:", err);
+    } catch (errPhp) {
+      // Quietly fall through
+    }
+
+    // 2. Try Node.js backend if connected
+    if (!uploadSuccess && isBackendConnected) {
+      try {
+        const formData = new FormData();
+        formData.append('logo', uploadedLogoFileRaw);
+        formData.append('ticker', ticker);
+        const uploadRes = await fetch(`${BACKEND_API_URL}/upload-logo`, {
+          method: 'POST',
+          body: formData
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.success && uploadData.logoUrl) {
+          finalIcon = uploadData.logoUrl;
+          uploadSuccess = true;
+          console.log("✅ Logo uploaded via Node.js backend:", finalIcon);
+        }
+      } catch (err) {
+        console.warn("Could not upload to backend:", err);
+      }
+    }
+
+    // 3. If no server upload endpoint exists, compress to compact thumbnail
+    if (!uploadSuccess && uploadedLogoDataUrl) {
+      try {
+        const thumb = await createCompressedThumbnail(uploadedLogoDataUrl, 64, 64);
+        if (thumb && thumb.length < 2500) {
+          finalIcon = thumb;
+        }
+      } catch (e) {
+        console.warn("Thumbnail generation error:", e);
+      }
     }
   }
 
@@ -1487,7 +1625,7 @@ async function handleCreateTokenSubmit(e) {
 
     // Sanitize on-chain metadata URI to avoid massive base64 calldata out-of-gas reverts
     let onChainMetadataUri = finalIcon;
-    if (onChainMetadataUri.startsWith("data:image/") || onChainMetadataUri.length > 256) {
+    if (onChainMetadataUri.startsWith("data:image/") && onChainMetadataUri.length > 2500) {
       onChainMetadataUri = `${window.location.origin}/uploads/logo_${ticker.toLowerCase()}.png`;
     }
 
@@ -1576,6 +1714,13 @@ async function handleCreateTokenSubmit(e) {
       } catch (e) {
         console.warn("Could not post new token to backend:", e);
       }
+    }
+
+    if (deployedTokenAddress) {
+      try {
+        localStorage.setItem(`rh_token_logo_${deployedTokenAddress.toLowerCase()}`, finalIcon || uploadedLogoDataUrl);
+        localStorage.setItem(`rh_token_logo_${ticker.toUpperCase()}`, finalIcon || uploadedLogoDataUrl);
+      } catch (e) {}
     }
 
     tokens.unshift(newToken);
