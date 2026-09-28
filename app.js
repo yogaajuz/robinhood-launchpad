@@ -968,6 +968,11 @@ function getTaxBadgeHtml(token) {
 }
 
 // --- Multi-View Navigation & Routing System ---
+function goToHomePage() {
+  switchView('explore');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function switchView(viewName, tokenId = null) {
   currentView = viewName;
   const viewExplore = document.getElementById("viewExplore");

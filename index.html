@@ -42,13 +42,13 @@
 
     <!-- Navigation Bar -->
     <header class="flex items-center justify-between pb-5 mb-5 border-b border-[#1f2737]">
-      <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-2xl overflow-hidden border border-[#00C805]/30 bg-[#121721] shadow-lg shadow-[#00C805]/20 shrink-0 flex items-center justify-center">
+      <div onclick="goToHomePage()" class="flex items-center gap-3 cursor-pointer group select-none" title="Go to Homepage">
+        <div class="w-11 h-11 rounded-2xl overflow-hidden border border-[#00C805]/30 bg-[#121721] shadow-lg shadow-[#00C805]/20 shrink-0 flex items-center justify-center group-hover:scale-105 group-hover:border-[#00C805]/60 transition-all duration-200">
           <img src="assets/logo.png" alt="RobinPump" class="w-full h-full object-cover" onerror="this.src='https://gateway.pinata.cloud/ipfs/bafybeibpujyc7reyol5jkrqmaexi4z7fxkcnbqx7xbw3x3lap3vjr2vbwu'">
         </div>
         <div>
           <div class="flex items-center gap-1.5 flex-wrap">
-            <h1 class="text-lg sm:text-xl font-black tracking-tight text-white">ROBINPUMP</h1>
+            <h1 class="text-lg sm:text-xl font-black tracking-tight text-white group-hover:text-[#00C805] transition-colors">ROBINPUMP</h1>
             <span class="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">Uniswap v4 Ready</span>
           </div>
           <p class="text-[11px] text-gray-400 flex items-center gap-1.5 flex-wrap">
@@ -422,8 +422,10 @@
     <!-- Footer & Legal Disclaimer -->
     <footer class="pt-8 pb-16 border-t border-[#1f2737] text-center text-xs text-gray-400">
       <div class="flex items-center justify-center gap-2 mb-2">
-        <img src="assets/logo.png" alt="RobinPump" class="w-5 h-5 rounded-md inline-block align-middle mr-1.5 object-cover" onerror="this.src='https://gateway.pinata.cloud/ipfs/bafybeibpujyc7reyol5jkrqmaexi4z7fxkcnbqx7xbw3x3lap3vjr2vbwu'">
-        <span class="font-bold text-gray-200">RobinPump — Decentralized Fair-Launch Protocol</span>
+        <div onclick="goToHomePage()" class="inline-flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition select-none" title="Go to Homepage">
+          <img src="assets/logo.png" alt="RobinPump" class="w-5 h-5 rounded-md inline-block align-middle object-cover" onerror="this.src='https://gateway.pinata.cloud/ipfs/bafybeibpujyc7reyol5jkrqmaexi4z7fxkcnbqx7xbw3x3lap3vjr2vbwu'">
+          <span class="font-bold text-gray-200 hover:text-white">RobinPump — Decentralized Fair-Launch Protocol</span>
+        </div>
         <span class="text-purple-400 font-bold">• Uniswap v4 Migration</span>
       </div>
       <p class="max-w-md mx-auto text-gray-400 text-xs">
