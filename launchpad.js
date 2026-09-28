@@ -221,6 +221,63 @@ function getFallbackEmoji(ticker = "", name = "") {
   return "🪙";
 }
 
+// --- HTML Escaping & Formatting Helpers ---
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+const escapeHTML = escapeHtml;
+
+function formatShortAddress(addr, chars = 4) {
+  if (!addr || typeof addr !== 'string') return '';
+  if (addr.length <= chars * 2 + 2) return addr;
+  return addr.slice(0, chars + 2) + '...' + addr.slice(-chars);
+}
+
+function copyContractAddress(addr, event, btnElement) {
+  if (event) event.stopPropagation();
+  if (!addr) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(addr).then(() => {
+      if (btnElement) {
+        const originalHtml = btnElement.innerHTML;
+        btnElement.innerHTML = `<span class="text-[#00C805] font-bold text-[8px]">COPIED</span>`;
+        setTimeout(() => {
+          btnElement.innerHTML = originalHtml;
+        }, 1500);
+      }
+    }).catch(() => {
+      prompt("Token Contract:", addr);
+    });
+  } else {
+    prompt("Token Contract:", addr);
+  }
+}
+
+function renderTokenContractUnderLogoHtml(token, isTerminal = false) {
+  if (!token) return '';
+  const addr = (token.address && token.address.startsWith("0x")) ? token.address : (token.id && token.id.startsWith("0x") ? token.id : null);
+  if (!addr) return '';
+  const shortAddr = formatShortAddress(addr, 3); // e.g. 0x7Ad...9BfC
+
+  return `
+    <div class="mt-1 flex items-center justify-center gap-1 text-[9px] font-mono text-gray-400 hover:text-white transition bg-[#121721] px-1.5 py-0.5 rounded border border-gray-800 shadow-sm" onclick="event.stopPropagation();" title="Smart Contract: ${addr}">
+      <a href="https://robinhoodchain.blockscout.com/address/${addr}" target="_blank" rel="noopener noreferrer" class="hover:text-[#00C805] hover:underline flex items-center gap-0.5">
+        <span>${shortAddr}</span>
+        <span class="text-[8px] opacity-70">↗</span>
+      </a>
+      <button type="button" onclick="copyContractAddress('${addr}', event, this)" class="text-gray-500 hover:text-[#00C805] transition cursor-pointer p-0.5" title="Copy Contract Address">
+        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+      </button>
+    </div>
+  `;
+}
+
 // --- IPFS Decentralized Storage Configuration ---
 // Free Pinata Signup: https://app.pinata.cloud/developers/api-keys
 // If you want direct browser IPFS pinning without server, paste your Pinata JWT here.
@@ -1230,7 +1287,10 @@ function renderUserProfile() {
               <div class="rounded-2xl bg-[#181f2c] hover:bg-[#1c2434] border border-[#242e42] hover:border-gray-700 p-4 sm:p-5 transition shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <!-- Left: Token Info & Thumbnail -->
                 <div class="flex items-center gap-3.5 cursor-pointer group" onclick="openTokenDetail('${t.id}')">
-                  ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl shrink-0 group-hover:scale-105 transition-transform", t)}
+                  <div class="flex flex-col items-center shrink-0">
+                    ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl group-hover:scale-105 transition-transform", t)}
+                    ${renderTokenContractUnderLogoHtml(t)}
+                  </div>
                   <div>
                     <div class="flex items-center gap-2 flex-wrap">
                       <h4 class="text-base font-bold text-white group-hover:text-[#00C805] transition">${t.name}</h4>
@@ -1312,9 +1372,12 @@ function renderKothBanner() {
       <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-[#00C805]/10 rounded-full blur-3xl pointer-events-none"></div>
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
-          <div class="relative">
-            ${renderTokenIconHtml(koth.icon, "w-14 h-14 text-4xl", koth)}
-            <span class="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold">👑 KOTH</span>
+          <div class="flex flex-col items-center shrink-0">
+            <div class="relative">
+              ${renderTokenIconHtml(koth.icon, "w-14 h-14 text-4xl", koth)}
+              <span class="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold">👑 KOTH</span>
+            </div>
+            ${renderTokenContractUnderLogoHtml(koth)}
           </div>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
@@ -1381,8 +1444,11 @@ function renderTokenGrid() {
 
         <div>
           <div class="flex items-start gap-3">
-            <div class="transition-transform group-hover:scale-105">
-              ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
+            <div class="flex flex-col items-center shrink-0">
+              <div class="transition-transform group-hover:scale-105">
+                ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
+              </div>
+              ${renderTokenContractUnderLogoHtml(t)}
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
@@ -1435,7 +1501,12 @@ function renderTerminal() {
 
   document.getElementById("terminalTokenName").innerText = activeToken.name;
   document.getElementById("terminalTokenTicker").innerText = `$${activeToken.ticker}`;
-  document.getElementById("terminalTokenIcon").innerHTML = renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl", activeToken);
+  document.getElementById("terminalTokenIcon").innerHTML = `
+    <div class="flex flex-col items-center">
+      ${renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl", activeToken)}
+      ${renderTokenContractUnderLogoHtml(activeToken, true)}
+    </div>
+  `;
   document.getElementById("terminalTokenDesc").innerText = activeToken.description;
   document.getElementById("terminalCreator").innerText = activeToken.creator;
 
