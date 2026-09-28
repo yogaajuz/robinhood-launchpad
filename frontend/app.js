@@ -357,36 +357,310 @@ function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = 
 
 // --- Helper: Format and Sanitize Social Media URLs ---
 function formatSocialUrl(url, type) {
-  if (!url) return null;
+  if (!url || typeof url !== 'string') return null;
   url = url.trim();
   if (!url) return null;
+
   if (type === 'twitter') {
-    if (url.startsWith('@')) return `https://x.com/${url.slice(1)}`;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://x.com/${url}`;
+    if (url.startsWith('@')) url = url.slice(1);
+    if (url.includes('twitter.com/') || url.includes('x.com/')) {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://${url}`;
+      return url;
+    }
+    const handle = url.replace(/[^a-zA-Z0-9_]/g, '');
+    return handle ? `https://x.com/${handle}` : `https://x.com/${encodeURIComponent(url)}`;
   }
+
   if (type === 'telegram') {
-    if (url.startsWith('@')) return `https://t.me/${url.slice(1)}`;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://t.me/${url}`;
+    if (url.startsWith('@')) url = url.slice(1);
+    if (url.includes('t.me/')) {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://${url}`;
+      return url;
+    }
+    const handle = url.replace(/[^a-zA-Z0-9_]/g, '');
+    return handle ? `https://t.me/${handle}` : `https://t.me/${encodeURIComponent(url)}`;
   }
+
   if (type === 'youtube') {
-    if (url.startsWith('@')) return `https://youtube.com/${url}`;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://youtube.com/${url}`;
+    if (url.includes('youtube.com/')) {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return `https://${url}`;
+      return url;
+    }
+    return `https://youtube.com/${url.startsWith('@') ? url : '@' + url}`;
   }
+
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return `https://${url}`;
   }
   return url;
 }
 
+// --- Universal Social Media Resolver & Cache ---
+let sharedSocialsCache = {};
+
+function getTokenSocials(token) {
+  if (!token) return {};
+  const res = {
+    website: token.website || null,
+    twitter: token.twitter || null,
+    telegram: token.telegram || null,
+    youtube: token.youtube || null,
+    discord: token.discord || null
+  };
+
+  const keysToTry = [
+    token.id,
+    token.address,
+    token.curveAddress,
+    token.ticker
+  ].filter(Boolean);
+
+  for (const k of keysToTry) {
+    const lower = k.toLowerCase();
+    const upper = k.toUpperCase();
+
+    // 1. Check shared in-memory socials cache (loaded from server / PHP)
+    if (sharedSocialsCache[lower]) {
+      const sc = sharedSocialsCache[lower];
+      if (sc.website && !res.website) res.website = sc.website;
+      if (sc.twitter && !res.twitter) res.twitter = sc.twitter;
+      if (sc.telegram && !res.telegram) res.telegram = sc.telegram;
+      if (sc.youtube && !res.youtube) res.youtube = sc.youtube;
+      if (sc.discord && !res.discord) res.discord = sc.discord;
+    }
+
+    // 2. Check localStorage
+    try {
+      const stored = localStorage.getItem(`rh_token_socials_${lower}`) || 
+                     localStorage.getItem(`rh_token_socials_${upper}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.website && !res.website) res.website = parsed.website;
+        if (parsed.twitter && !res.twitter) res.twitter = parsed.twitter;
+        if (parsed.telegram && !res.telegram) res.telegram = parsed.telegram;
+        if (parsed.youtube && !res.youtube) res.youtube = parsed.youtube;
+        if (parsed.discord && !res.discord) res.discord = parsed.discord;
+      }
+    } catch (e) {}
+  }
+
+  // 3. Check on-chain metadata URI if it contains JSON payload
+  if (token.metadataUri && typeof token.metadataUri === 'string' && token.metadataUri.trim().startsWith('{')) {
+    try {
+      const m = JSON.parse(token.metadataUri);
+      if (m.website && !res.website) res.website = m.website;
+      if (m.twitter && !res.twitter) res.twitter = m.twitter;
+      if (m.telegram && !res.telegram) res.telegram = m.telegram;
+      if (m.youtube && !res.youtube) res.youtube = m.youtube;
+      if (m.discord && !res.discord) res.discord = m.discord;
+    } catch (e) {}
+  }
+
+  return res;
+}
+
+async function fetchSharedSocials() {
+  try {
+    const res = await fetch('/socials.php');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.allSocials) {
+        sharedSocialsCache = { ...sharedSocialsCache, ...data.allSocials };
+      }
+    }
+  } catch (e) {}
+
+  tokens.forEach(tok => {
+    const socials = getTokenSocials(tok);
+    if (socials.website) tok.website = socials.website;
+    if (socials.twitter) tok.twitter = socials.twitter;
+    if (socials.telegram) tok.telegram = socials.telegram;
+    if (socials.youtube) tok.youtube = socials.youtube;
+    if (socials.discord) tok.discord = socials.discord;
+  });
+
+  if (activeToken) {
+    const aSoc = getTokenSocials(activeToken);
+    if (aSoc.website) activeToken.website = aSoc.website;
+    if (aSoc.twitter) activeToken.twitter = aSoc.twitter;
+    if (aSoc.telegram) activeToken.telegram = aSoc.telegram;
+    if (aSoc.youtube) activeToken.youtube = aSoc.youtube;
+    if (aSoc.discord) activeToken.discord = aSoc.discord;
+    const socialsContainer = document.getElementById("terminalSocialLinks");
+    if (socialsContainer) {
+      socialsContainer.innerHTML = renderSocialBadgesHtml(activeToken);
+    }
+  }
+}
+
+async function saveTokenSocials(token, rawSocials) {
+  if (!token) return;
+  const idKey = (token.id || token.address || '').toLowerCase();
+  const tickerKey = (token.ticker || '').toUpperCase();
+
+  const formatted = {
+    website: formatSocialUrl(rawSocials.website, 'website'),
+    twitter: formatSocialUrl(rawSocials.twitter, 'twitter'),
+    telegram: formatSocialUrl(rawSocials.telegram, 'telegram'),
+    youtube: formatSocialUrl(rawSocials.youtube, 'youtube'),
+    discord: formatSocialUrl(rawSocials.discord, 'discord')
+  };
+
+  // 1. Update in-memory
+  token.website = formatted.website;
+  token.twitter = formatted.twitter;
+  token.telegram = formatted.telegram;
+  token.youtube = formatted.youtube;
+  token.discord = formatted.discord;
+
+  if (idKey) sharedSocialsCache[idKey] = formatted;
+  if (tickerKey) sharedSocialsCache[tickerKey.toLowerCase()] = formatted;
+
+  // 2. Save in localStorage
+  try {
+    if (idKey) localStorage.setItem(`rh_token_socials_${idKey}`, JSON.stringify(formatted));
+    if (tickerKey) localStorage.setItem(`rh_token_socials_${tickerKey}`, JSON.stringify(formatted));
+    if (token.address) localStorage.setItem(`rh_token_socials_${token.address.toLowerCase()}`, JSON.stringify(formatted));
+  } catch (e) {}
+
+  // 3. Post to PHP socials.php (cPanel)
+  try {
+    await fetch('/socials.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: token.id,
+        ticker: token.ticker,
+        address: token.address,
+        ...formatted
+      })
+    });
+  } catch (e) {}
+
+  // 4. Post to Node backend if connected
+  if (isBackendConnected) {
+    try {
+      await fetch(`${BACKEND_API_URL}/tokens/${token.id}/socials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websiteUrl: formatted.website,
+          twitterUrl: formatted.twitter,
+          telegramUrl: formatted.telegram,
+          youtubeUrl: formatted.youtube,
+          discordUrl: formatted.discord
+        })
+      });
+    } catch (e) {}
+  }
+
+  // 5. Update UI
+  const socialsContainer = document.getElementById("terminalSocialLinks");
+  if (socialsContainer && activeToken && (activeToken.id === token.id || activeToken.ticker === token.ticker)) {
+    socialsContainer.innerHTML = renderSocialBadgesHtml(activeToken);
+  }
+}
+
+function openEditSocialsModal(tokenId) {
+  const token = tokens.find(t => 
+    (t.id && t.id.toLowerCase() === (tokenId || '').toLowerCase()) ||
+    (t.address && t.address.toLowerCase() === (tokenId || '').toLowerCase()) ||
+    (t.ticker && t.ticker.toUpperCase() === (tokenId || '').toUpperCase())
+  ) || activeToken;
+
+  if (!token) return;
+
+  const modal = document.getElementById("editSocialsModal");
+  if (!modal) return;
+
+  const titleEl = document.getElementById("editSocialsTitle");
+  if (titleEl) {
+    titleEl.innerHTML = `<span>✏️</span> <span>Manage Links for $${escapeHtml(token.ticker)}</span>`;
+  }
+
+  const idInput = document.getElementById("editSocialsTokenId");
+  if (idInput) idInput.value = token.id || token.address;
+
+  const socials = getTokenSocials(token);
+
+  const twitterInput = document.getElementById("editSocialsTwitter");
+  if (twitterInput) twitterInput.value = socials.twitter || '';
+
+  const telegramInput = document.getElementById("editSocialsTelegram");
+  if (telegramInput) telegramInput.value = socials.telegram || '';
+
+  const websiteInput = document.getElementById("editSocialsWebsite");
+  if (websiteInput) websiteInput.value = socials.website || '';
+
+  const youtubeInput = document.getElementById("editSocialsYoutube");
+  if (youtubeInput) youtubeInput.value = socials.youtube || '';
+
+  const discordInput = document.getElementById("editSocialsDiscord");
+  if (discordInput) discordInput.value = socials.discord || '';
+
+  modal.classList.remove("hidden");
+}
+
+function closeEditSocialsModal() {
+  const modal = document.getElementById("editSocialsModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function handleEditSocialsSubmit(e) {
+  e.preventDefault();
+  const tokenId = document.getElementById("editSocialsTokenId")?.value;
+  const token = tokens.find(t => 
+    (t.id && t.id.toLowerCase() === (tokenId || '').toLowerCase()) ||
+    (t.address && t.address.toLowerCase() === (tokenId || '').toLowerCase())
+  ) || activeToken;
+
+  if (!token) return;
+
+  const twitterRaw = document.getElementById("editSocialsTwitter")?.value.trim() || '';
+  const telegramRaw = document.getElementById("editSocialsTelegram")?.value.trim() || '';
+  const websiteRaw = document.getElementById("editSocialsWebsite")?.value.trim() || '';
+  const youtubeRaw = document.getElementById("editSocialsYoutube")?.value.trim() || '';
+  const discordRaw = document.getElementById("editSocialsDiscord")?.value.trim() || '';
+
+  const saveBtn = document.getElementById("saveSocialsBtn");
+  const origText = saveBtn ? saveBtn.innerText : "Save Links";
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerText = "Saving...";
+  }
+
+  try {
+    await saveTokenSocials(token, {
+      twitter: twitterRaw,
+      telegram: telegramRaw,
+      website: websiteRaw,
+      youtube: youtubeRaw,
+      discord: discordRaw
+    });
+
+    closeEditSocialsModal();
+    alert(`✅ Community links for $${token.ticker} saved successfully!`);
+  } catch (err) {
+    console.error("Save socials error:", err);
+    alert("Could not save links: " + (err.message || err));
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerText = origText;
+    }
+  }
+}
+
 function renderSocialBadgesHtml(token) {
   if (!token) return '';
+  const socials = getTokenSocials(token);
   const badges = [];
 
-  const website = formatSocialUrl(token.website, 'website');
-  const twitter = formatSocialUrl(token.twitter, 'twitter');
-  const telegram = formatSocialUrl(token.telegram, 'telegram');
-  const youtube = formatSocialUrl(token.youtube, 'youtube');
-  const discord = formatSocialUrl(token.discord, 'discord');
+  const website = formatSocialUrl(socials.website, 'website');
+  const twitter = formatSocialUrl(socials.twitter, 'twitter');
+  const telegram = formatSocialUrl(socials.telegram, 'telegram');
+  const youtube = formatSocialUrl(socials.youtube, 'youtube');
+  const discord = formatSocialUrl(socials.discord, 'discord');
 
   if (website) {
     badges.push(`
@@ -424,9 +698,12 @@ function renderSocialBadgesHtml(token) {
     `);
   }
 
-  if (badges.length === 0) {
-    return `<div class="text-[11px] text-gray-500 italic">No community links added yet</div>`;
-  }
+  // Manage / Edit links button
+  badges.push(`
+    <button type="button" onclick="openEditSocialsModal('${token.id}')" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#181f2c] hover:bg-[#232c3d] border border-gray-700 hover:border-gray-500 text-[11px] text-gray-300 hover:text-white transition font-medium cursor-pointer" title="Edit or add official community links">
+      <span>✏️</span> <span>${badges.length === 0 ? '+ Add Social Links' : 'Edit Links'}</span>
+    </button>
+  `);
 
   return badges.join('');
 }
@@ -434,11 +711,12 @@ function renderSocialBadgesHtml(token) {
 function renderMiniSocialsHtml(token) {
   if (!token) return '';
   const items = [];
-  const website = formatSocialUrl(token.website, 'website');
-  const twitter = formatSocialUrl(token.twitter, 'twitter');
-  const telegram = formatSocialUrl(token.telegram, 'telegram');
-  const youtube = formatSocialUrl(token.youtube, 'youtube');
-  const discord = formatSocialUrl(token.discord, 'discord');
+  const socials = getTokenSocials(token);
+  const website = formatSocialUrl(socials.website, 'website');
+  const twitter = formatSocialUrl(socials.twitter, 'twitter');
+  const telegram = formatSocialUrl(socials.telegram, 'telegram');
+  const youtube = formatSocialUrl(socials.youtube, 'youtube');
+  const discord = formatSocialUrl(socials.discord, 'discord');
 
   if (website) items.push(`<a href="${website}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-white" title="Website">🌐</a>`);
   if (twitter) items.push(`<a href="${twitter}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="text-gray-400 hover:text-white font-bold text-[10px]" title="X / Twitter">𝕏</a>`);
@@ -585,40 +863,51 @@ async function fetchOnChainTokens() {
         const marketCapUsd = Math.round(currentTotalEth * ethUsdPrice * 2.5);
         const volume24hUsd = Math.round(realEth * ethUsdPrice + 350);
 
-        // Determine best token logo / icon
-        const cachedLogo = localStorage.getItem(`rh_token_logo_${tokenAddr.toLowerCase()}`) || 
-                           localStorage.getItem(`rh_token_logo_${tSym.toUpperCase()}`);
-        let tokenIcon = cachedLogo;
-        if (!tokenIcon) {
-          if (tUri && (tUri.startsWith('http') || tUri.startsWith('data:') || tUri.startsWith('/uploads'))) {
-            tokenIcon = tUri;
-          } else if (tSym === 'SCAT') {
-            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeih3crzhlp5xpywjo5vetg2nhomvxcngr2o2vhepuizw7ks3a34dsi';
-          } else if (tSym === 'SAMPI') {
-            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru';
-          } else {
-            tokenIcon = DEFAULT_TOKEN_LOGO;
+        // Determine best token logo, description & socials from on-chain metadata or fallback
+        let tokenDesc = "Verified bonding curve on Robinhood Chain Mainnet";
+        let tokenIcon = DEFAULT_TOKEN_LOGO;
+        let tokenSocials = {};
+
+        if (tUri) {
+          const trimmedUri = tUri.trim();
+          if (trimmedUri.startsWith('{')) {
+            try {
+              const meta = JSON.parse(trimmedUri);
+              if (meta.image || meta.icon) tokenIcon = meta.image || meta.icon;
+              if (meta.description) tokenDesc = meta.description;
+              if (meta.website) tokenSocials.website = meta.website;
+              if (meta.twitter) tokenSocials.twitter = meta.twitter;
+              if (meta.telegram) tokenSocials.telegram = meta.telegram;
+              if (meta.youtube) tokenSocials.youtube = meta.youtube;
+              if (meta.discord) tokenSocials.discord = meta.discord;
+            } catch (e) {}
+          } else if (trimmedUri.startsWith('http') || trimmedUri.startsWith('data:') || trimmedUri.startsWith('/uploads')) {
+            tokenIcon = trimmedUri;
           }
         }
 
-        // Determine token social media links
-        let tokenSocials = {};
-        try {
-          const cachedSocials = localStorage.getItem(`rh_token_socials_${tokenAddr.toLowerCase()}`) || 
-                                localStorage.getItem(`rh_token_socials_${tSym.toUpperCase()}`);
-          if (cachedSocials) tokenSocials = JSON.parse(cachedSocials);
-        } catch (e) {}
-
-        if (tUri && tUri.startsWith('{')) {
-          try {
-            const meta = JSON.parse(tUri);
-            if (meta.website) tokenSocials.website = meta.website;
-            if (meta.twitter) tokenSocials.twitter = meta.twitter;
-            if (meta.telegram) tokenSocials.telegram = meta.telegram;
-            if (meta.youtube) tokenSocials.youtube = meta.youtube;
-            if (meta.discord) tokenSocials.discord = meta.discord;
-          } catch (e) {}
+        // Check cached logo fallback
+        const cachedLogo = localStorage.getItem(`rh_token_logo_${tokenAddr.toLowerCase()}`) || 
+                           localStorage.getItem(`rh_token_logo_${tSym.toUpperCase()}`);
+        if (cachedLogo) {
+          tokenIcon = cachedLogo;
+        } else if (tokenIcon === DEFAULT_TOKEN_LOGO) {
+          if (tSym === 'SCAT') {
+            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeih3crzhlp5xpywjo5vetg2nhomvxcngr2o2vhepuizw7ks3a34dsi';
+          } else if (tSym === 'SAMPI') {
+            tokenIcon = 'https://gateway.pinata.cloud/ipfs/bafybeieqi7ggpx7l4jwpktsxk7ertrnvirujpgpoffj3fjyg5kqxhviaru';
+          }
         }
+
+        // Resolve socials from full multi-tiered resolver (shared PHP, localStorage, on-chain)
+        const resolvedSocials = getTokenSocials({
+          id: tokenAddr,
+          address: tokenAddr,
+          curveAddress: curveAddr,
+          ticker: tSym,
+          ...tokenSocials
+        });
+        tokenSocials = { ...tokenSocials, ...resolvedSocials };
 
         discovered.push({
           id: tokenAddr,
@@ -626,7 +915,7 @@ async function fetchOnChainTokens() {
           curveAddress: curveAddr,
           name: tName,
           ticker: tSym,
-          description: `Verified bonding curve on Robinhood Chain Mainnet`,
+          description: tokenDesc,
           icon: tokenIcon,
           creator: creator.slice(0, 6) + '...' + creator.slice(-4),
           rawCreator: creator,
@@ -648,6 +937,7 @@ async function fetchOnChainTokens() {
           telegram: tokenSocials.telegram || null,
           youtube: tokenSocials.youtube || null,
           discord: tokenSocials.discord || null,
+          metadataUri: tUri,
           history: [0.1, realEth > 0 ? realEth : 0.1]
         });
       } catch (errInner) {
@@ -662,7 +952,22 @@ async function fetchOnChainTokens() {
       try {
         localStorage.setItem(LOCAL_STORAGE_TOKENS_KEY, JSON.stringify(discovered));
       } catch (e) {}
-      activeToken = tokens[0];
+
+      if (activeToken) {
+        const matchingActive = tokens.find(t => 
+          (t.id && t.id.toLowerCase() === activeToken.id.toLowerCase()) ||
+          (t.address && t.address.toLowerCase() === (activeToken.address || '').toLowerCase()) ||
+          (t.ticker && t.ticker.toUpperCase() === (activeToken.ticker || '').toUpperCase())
+        );
+        if (matchingActive) {
+          activeToken = matchingActive;
+        } else {
+          activeToken = tokens[0];
+        }
+      } else {
+        activeToken = tokens[0];
+      }
+
       renderKothBanner();
       renderTokenGrid();
       renderTerminal();
@@ -674,7 +979,10 @@ async function fetchOnChainTokens() {
 }
 
 async function initBackendSync() {
-  // 1. Immediately restore any cached tokens from localStorage
+  // 1. Immediately fetch shared socials from socials.php / local cache
+  await fetchSharedSocials();
+
+  // 2. Immediately restore any cached tokens from localStorage
   try {
     const cached = localStorage.getItem(LOCAL_STORAGE_TOKENS_KEY);
     if (cached) {
@@ -691,7 +999,7 @@ async function initBackendSync() {
     }
   } catch (e) {}
 
-  // 2. Try Cloud / Backend REST API
+  // 3. Try Cloud / Backend REST API
   try {
     const res = await fetch(`${BACKEND_API_URL}/health`);
     if (res.ok) {
@@ -709,8 +1017,9 @@ async function initBackendSync() {
     console.log('ℹ️ Running in standalone Web3 client mode directly with Robinhood Chain Mainnet.');
   }
 
-  // 3. Always run on-chain discovery directly from Robinhood Chain RPC!
+  // 4. Always run on-chain discovery directly from Robinhood Chain RPC!
   await fetchOnChainTokens();
+  await fetchSharedSocials();
 }
 
 async function fetchTokensFromDb() {
@@ -718,39 +1027,51 @@ async function fetchTokensFromDb() {
     const res = await fetch(`${BACKEND_API_URL}/tokens?sort=${activeTab}`);
     const data = await res.json();
     if (data.success && data.tokens && data.tokens.length > 0) {
-      tokens = data.tokens.map(dbTok => ({
-        id: dbTok.id,
-        address: dbTok.id && dbTok.id.startsWith("0x") ? dbTok.id : null,
-        curveAddress: dbTok.curve_address && dbTok.curve_address.startsWith("0x") ? dbTok.curve_address : null,
-        ticker: dbTok.symbol,
-        name: dbTok.name,
-        description: dbTok.description,
-        icon: dbTok.logo_url || DEFAULT_TOKEN_LOGO,
-        creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
-        rawCreator: dbTok.creator || null,
-        creatorAddress: dbTok.creator ? dbTok.creator.toLowerCase() : null,
-        realEth: parseFloat(dbTok.real_eth) || 0.0,
-        tokensLeft: (function() {
-          let tl = parseFloat(dbTok.tokens_left) || 800000000;
-          if (tl > 1000000000) tl = tl / 1e18;
-          return tl;
-        })(),
-        priceEth: 0.000000034,
-        marketCapUsd: parseFloat(dbTok.market_cap_usd) || 12000,
-        change24h: 14.5,
-        volume24hUsd: parseFloat(dbTok.volume_24h_usd) || 3500,
-        graduated: Boolean(dbTok.is_graduated),
-        creatorTax: (dbTok.creator_tax_bps || 0) / 100,
-        holderTax: (dbTok.holder_tax_bps || 0) / 100,
-        website: dbTok.website_url || null,
-        twitter: dbTok.twitter_url || null,
-        telegram: dbTok.telegram_url || null,
-        youtube: dbTok.youtube_url || null,
-        discord: dbTok.discord_url || null,
-        history: [0.1, parseFloat(dbTok.real_eth) || 0.1]
-      }));
+      tokens = data.tokens.map(dbTok => {
+        const dbSocials = {
+          website: dbTok.website_url || null,
+          twitter: dbTok.twitter_url || null,
+          telegram: dbTok.telegram_url || null,
+          youtube: dbTok.youtube_url || null,
+          discord: dbTok.discord_url || null
+        };
+        const resolved = getTokenSocials({ id: dbTok.id, ticker: dbTok.symbol, address: dbTok.id, ...dbSocials });
+        const finalSocials = { ...dbSocials, ...resolved };
 
-      if (!activeToken || !tokens.some(t => t.id === activeToken.id)) {
+        return {
+          id: dbTok.id,
+          address: dbTok.id && dbTok.id.startsWith("0x") ? dbTok.id : null,
+          curveAddress: dbTok.curve_address && dbTok.curve_address.startsWith("0x") ? dbTok.curve_address : null,
+          ticker: dbTok.symbol,
+          name: dbTok.name,
+          description: dbTok.description,
+          icon: dbTok.logo_url || DEFAULT_TOKEN_LOGO,
+          creator: dbTok.creator ? (dbTok.creator.slice(0, 6) + '...' + dbTok.creator.slice(-4)) : "0xRobin...hood",
+          rawCreator: dbTok.creator || null,
+          creatorAddress: dbTok.creator ? dbTok.creator.toLowerCase() : null,
+          realEth: parseFloat(dbTok.real_eth) || 0.0,
+          tokensLeft: (function() {
+            let tl = parseFloat(dbTok.tokens_left) || 800000000;
+            if (tl > 1000000000) tl = tl / 1e18;
+            return tl;
+          })(),
+          priceEth: 0.000000034,
+          marketCapUsd: parseFloat(dbTok.market_cap_usd) || 12000,
+          change24h: 14.5,
+          volume24hUsd: parseFloat(dbTok.volume_24h_usd) || 3500,
+          graduated: Boolean(dbTok.is_graduated),
+          creatorTax: (dbTok.creator_tax_bps || 0) / 100,
+          holderTax: (dbTok.holder_tax_bps || 0) / 100,
+          website: finalSocials.website || null,
+          twitter: finalSocials.twitter || null,
+          telegram: finalSocials.telegram || null,
+          youtube: finalSocials.youtube || null,
+          discord: finalSocials.discord || null,
+          history: [0.1, parseFloat(dbTok.real_eth) || 0.1]
+        };
+      });
+
+      if (!activeToken || !tokens.some(t => (t.id || '').toLowerCase() === (activeToken.id || '').toLowerCase())) {
         activeToken = tokens[0];
       }
       renderKothBanner();
@@ -1021,7 +1342,12 @@ function switchView(viewName, tokenId = null) {
   } else if (viewName === "token") {
     if (viewToken) viewToken.classList.remove("hidden");
     if (tokenId) {
-      const found = tokens.find(t => t.id === tokenId);
+      const cleanId = (tokenId || '').toLowerCase();
+      const found = tokens.find(t => 
+        (t.id && t.id.toLowerCase() === cleanId) ||
+        (t.address && t.address.toLowerCase() === cleanId) ||
+        (t.ticker && t.ticker.toLowerCase() === cleanId)
+      );
       if (found) activeToken = found;
     }
     if (window.location.hash !== `#token=${activeToken.id}`) {
@@ -1054,7 +1380,12 @@ function switchView(viewName, tokenId = null) {
 }
 
 function openTokenDetail(tokenId) {
-  const found = tokens.find(t => t.id === tokenId);
+  const cleanId = (tokenId || '').toLowerCase();
+  const found = tokens.find(t => 
+    (t.id && t.id.toLowerCase() === cleanId) ||
+    (t.address && t.address.toLowerCase() === cleanId) ||
+    (t.ticker && t.ticker.toLowerCase() === cleanId)
+  );
   if (found) {
     activeToken = found;
   }
@@ -3193,20 +3524,36 @@ async function handleCreateTokenSubmit(e) {
     const holderTaxBps = Math.round(holderTax * 100);
     const devBuyWei = devBuyEth > 0 ? ethers.parseEther(devBuyEth.toString()) : 0n;
 
-    // Sanitize on-chain metadata URI to avoid massive base64 calldata out-of-gas reverts
-    let onChainMetadataUri = finalIcon;
-    if (onChainMetadataUri.startsWith("data:image/") && onChainMetadataUri.length > 2500) {
+    // Sanitize on-chain logo URL
+    let onChainLogo = finalIcon;
+    if (onChainLogo.startsWith("data:image/") && onChainLogo.length > 2500) {
       try {
-        const microThumb = await createCompressedThumbnail(onChainMetadataUri, 48, 48);
+        const microThumb = await createCompressedThumbnail(onChainLogo, 48, 48);
         if (microThumb && microThumb.length < 2500) {
-          onChainMetadataUri = microThumb;
+          onChainLogo = microThumb;
         } else {
-          onChainMetadataUri = DEFAULT_TOKEN_LOGO;
+          onChainLogo = DEFAULT_TOKEN_LOGO;
         }
       } catch (e) {
-        onChainMetadataUri = DEFAULT_TOKEN_LOGO;
+        onChainLogo = DEFAULT_TOKEN_LOGO;
       }
     }
+
+    // Construct full decentralized JSON metadata to store directly on-chain on Robinhood Chain
+    const onChainMetadataObj = {
+      name: name,
+      symbol: ticker,
+      description: desc,
+      image: onChainLogo,
+      website: formattedWebsite,
+      twitter: formattedTwitter,
+      telegram: formattedTelegram,
+      youtube: formattedYoutube,
+      discord: formattedDiscord,
+      creator: userWallet.address,
+      createdAt: Date.now()
+    };
+    const onChainMetadataUri = JSON.stringify(onChainMetadataObj);
 
     // Check if factory requires an upfront creation fee
     let creationFeeWei = 0n;
@@ -3320,15 +3667,15 @@ async function handleCreateTokenSubmit(e) {
       try {
         localStorage.setItem(`rh_token_logo_${deployedTokenAddress.toLowerCase()}`, finalIcon || uploadedLogoDataUrl);
         localStorage.setItem(`rh_token_logo_${ticker.toUpperCase()}`, finalIcon || uploadedLogoDataUrl);
-        const socialsObj = {
+
+        // Save to universal social stores (PHP, Node, LocalStorage)
+        await saveTokenSocials(newToken, {
           website: formattedWebsite,
           twitter: formattedTwitter,
           telegram: formattedTelegram,
           youtube: formattedYoutube,
           discord: formattedDiscord
-        };
-        localStorage.setItem(`rh_token_socials_${deployedTokenAddress.toLowerCase()}`, JSON.stringify(socialsObj));
-        localStorage.setItem(`rh_token_socials_${ticker.toUpperCase()}`, JSON.stringify(socialsObj));
+        });
 
         // Save to user launched registry so it appears on profile instantly
         const userLaunchedKey = `rh_user_launched_${userWallet.address.toLowerCase()}`;

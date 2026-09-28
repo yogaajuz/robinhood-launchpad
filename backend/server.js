@@ -280,6 +280,32 @@ app.post('/api/tokens', async (req, res) => {
   }
 });
 
+// Update social media links for a token
+app.post('/api/tokens/:id/socials', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { websiteUrl = '', twitterUrl = '', telegramUrl = '', youtubeUrl = '', discordUrl = '' } = req.body;
+    await query(
+      `UPDATE tokens SET 
+         website_url = COALESCE(NULLIF(?, ''), website_url),
+         twitter_url = COALESCE(NULLIF(?, ''), twitter_url),
+         telegram_url = COALESCE(NULLIF(?, ''), telegram_url),
+         youtube_url = COALESCE(NULLIF(?, ''), youtube_url),
+         discord_url = COALESCE(NULLIF(?, ''), discord_url)
+       WHERE LOWER(id) = LOWER(?) OR LOWER(symbol) = LOWER(?)`,
+      [websiteUrl, twitterUrl, telegramUrl, youtubeUrl, discordUrl, id, id]
+    );
+    broadcast({
+      type: 'TOKEN_SOCIALS_UPDATED',
+      id,
+      socials: { websiteUrl, twitterUrl, telegramUrl, youtubeUrl, discordUrl }
+    });
+    res.json({ success: true, message: 'Social links updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. Get Single Token Details
 app.get('/api/tokens/:id', async (req, res) => {
   try {
