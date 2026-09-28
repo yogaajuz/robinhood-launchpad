@@ -97,6 +97,16 @@ let wsClient = null;
 let browserProvider = null;
 let browserSigner = null;
 
+// Universal On-Chain RPC Provider for Robinhood Chain Mainnet
+let rpcProvider = null;
+try {
+  if (typeof ethers !== 'undefined' && ethers.JsonRpcProvider) {
+    rpcProvider = new ethers.JsonRpcProvider(RH_CHAIN_CONFIG.rpcUrls[0]);
+  }
+} catch (e) {
+  console.warn("Could not initialize global rpcProvider:", e);
+}
+
 // --- Live On-Chain Tokens on Robinhood Chain Mainnet ---
 let tokens = [
   {
@@ -1097,15 +1107,31 @@ function connectWebSocket() {
           (t.address && t.address.toLowerCase() === (tr.tokenAddress || '').toLowerCase()) ||
           (t.curveAddress && t.curveAddress.toLowerCase() === (tr.tokenAddress || '').toLowerCase())
         );
-        recordTrade(targetToken || { id: tr.tokenAddress, ticker: 'TOKEN' }, {
+        const mappedTrade = {
           type: tr.isBuy ? 'buy' : 'sell',
           user: tr.trader ? (tr.trader.slice(0, 6) + '...' + tr.trader.slice(-4)) : '0x...',
           rawTrader: tr.trader,
           eth: Number(tr.ethAmount || 0),
           tokens: Number(tr.tokenAmount || 0),
+          timestamp: tr.time ? new Date(tr.time).getTime() : Date.now(),
           time: 'Just now',
           txHash: tr.txHash
-        });
+        };
+        recordTrade(targetToken || { id: tr.tokenAddress, ticker: 'TOKEN' }, mappedTrade);
+        if (targetToken) {
+          if (tr.isBuy) {
+            targetToken.realEth = (Number(targetToken.realEth) || 0) + Number(tr.ethAmount || 0);
+          } else {
+            targetToken.realEth = Math.max(0, (Number(targetToken.realEth) || 0) - Number(tr.ethAmount || 0));
+          }
+          if (activeToken && (
+            (activeToken.id && activeToken.id.toLowerCase() === (targetToken.id || '').toLowerCase()) ||
+            (activeToken.address && activeToken.address.toLowerCase() === (targetToken.address || '').toLowerCase())
+          )) {
+            renderTerminal();
+            drawChart();
+          }
+        }
       } else if (msg.type === 'TOKEN_CREATED') {
         fetchTokensFromDb();
       }
@@ -1333,6 +1359,7 @@ function switchView(viewName, tokenId = null) {
   if (viewProfile) viewProfile.classList.add("hidden");
 
   if (viewName === "explore") {
+    stopChartLiveTicker();
     if (viewExplore) viewExplore.classList.remove("hidden");
     if (window.location.hash !== "#explore") {
       history.replaceState(null, "", "#explore");
@@ -1361,11 +1388,13 @@ function switchView(viewName, tokenId = null) {
     }
     renderTerminal();
     fetchTokenTrades(activeToken);
+    startChartLiveTicker();
     setTimeout(drawChart, 60);
     if (userWallet.connected) {
       refreshUserWalletData();
     }
   } else if (viewName === "profile") {
+    stopChartLiveTicker();
     if (viewProfile) viewProfile.classList.remove("hidden");
     if (window.location.hash !== "#profile") {
       history.replaceState(null, "", "#profile");
@@ -2115,13 +2144,28 @@ function getTradesForToken(token) {
   const idKey = (token.id || '').toLowerCase();
   const addrKey = (token.address || '').toLowerCase();
   const curveKey = (token.curveAddress || '').toLowerCase();
+  const tickerKey = (token.ticker || '').toLowerCase();
 
   if (tokenTradesMap[idKey] && tokenTradesMap[idKey].length > 0) return tokenTradesMap[idKey];
   if (addrKey && tokenTradesMap[addrKey] && tokenTradesMap[addrKey].length > 0) return tokenTradesMap[addrKey];
   if (curveKey && tokenTradesMap[curveKey] && tokenTradesMap[curveKey].length > 0) return tokenTradesMap[curveKey];
+  if (tickerKey && tokenTradesMap[tickerKey] && tokenTradesMap[tickerKey].length > 0) return tokenTradesMap[tickerKey];
+
+  try {
+    const cached = localStorage.getItem('rh_trades_' + idKey) || 
+                   (addrKey ? localStorage.getItem('rh_trades_' + addrKey) : null) ||
+                   (tickerKey ? localStorage.getItem('rh_trades_' + tickerKey) : null);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        tokenTradesMap[idKey] = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
 
   if (defaultMockTrades[idKey]) return defaultMockTrades[idKey];
-  if (token.ticker && defaultMockTrades[token.ticker.toLowerCase()]) return defaultMockTrades[token.ticker.toLowerCase()];
+  if (tickerKey && defaultMockTrades[tickerKey]) return defaultMockTrades[tickerKey];
 
   return [];
 }
@@ -2129,13 +2173,19 @@ function getTradesForToken(token) {
 function setTokenTrades(token, tradesList) {
   if (!token) return;
   const idKey = (token.id || '').toLowerCase();
-  tokenTradesMap[idKey] = tradesList;
-  if (token.address) {
-    tokenTradesMap[token.address.toLowerCase()] = tradesList;
-  }
-  if (token.curveAddress) {
-    tokenTradesMap[token.curveAddress.toLowerCase()] = tradesList;
-  }
+  const addrKey = (token.address || '').toLowerCase();
+  const tickerKey = (token.ticker || '').toLowerCase();
+
+  if (idKey) tokenTradesMap[idKey] = tradesList;
+  if (addrKey) tokenTradesMap[addrKey] = tradesList;
+  if (token.curveAddress) tokenTradesMap[token.curveAddress.toLowerCase()] = tradesList;
+  if (tickerKey) tokenTradesMap[tickerKey] = tradesList;
+
+  try {
+    if (idKey) localStorage.setItem('rh_trades_' + idKey, JSON.stringify(tradesList.slice(0, 50)));
+    if (addrKey) localStorage.setItem('rh_trades_' + addrKey, JSON.stringify(tradesList.slice(0, 50)));
+    if (tickerKey) localStorage.setItem('rh_trades_' + tickerKey, JSON.stringify(tradesList.slice(0, 50)));
+  } catch (e) {}
 }
 
 function recordTrade(token, tradeData) {
@@ -2168,84 +2218,81 @@ function recordTrade(token, tradeData) {
 
 async function fetchTokenTrades(token) {
   if (!token) return;
-  const lookupKey = token.id || token.address;
+  const lookupKey = (token.id || token.address || '').toLowerCase();
   if (!lookupKey) return;
+
+  let loadedTrades = [];
 
   // 1. Fetch indexed trades from Cloud / Local REST API
   try {
-    const res = await fetch(`${API_BASE_URL}/api/tokens/${lookupKey}/trades`);
+    const res = await fetch(`${BACKEND_API_URL}/tokens/${lookupKey}/trades`);
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.trades) && data.trades.length > 0) {
-        const mapped = data.trades.map(t => ({
-          type: t.is_buy ? 'buy' : 'sell',
-          user: t.trader ? (t.trader.slice(0, 6) + '...' + t.trader.slice(-4)) : '0x...',
-          rawTrader: t.trader,
-          eth: Number(t.eth_amount || 0),
-          tokens: Number(t.token_amount || 0),
-          time: formatTimeAgo(t.timestamp),
-          txHash: t.tx_hash
-        }));
-        setTokenTrades(token, mapped);
-        renderTradeHistory();
-        drawChart();
-        return;
+        loadedTrades = data.trades.map(t => {
+          const parsedTs = t.timestamp ? new Date(t.timestamp).getTime() : Date.now();
+          return {
+            type: (t.is_buy === 1 || t.is_buy === true || t.type === 'buy') ? 'buy' : 'sell',
+            user: t.trader ? (t.trader.slice(0, 6) + '...' + t.trader.slice(-4)) : '0x...',
+            rawTrader: t.trader,
+            eth: Number(t.eth_amount || t.eth || 0),
+            tokens: Number(t.token_amount || t.tokens || 0),
+            timestamp: isNaN(parsedTs) ? Date.now() : parsedTs,
+            time: formatTimeAgo(t.timestamp),
+            txHash: t.tx_hash
+          };
+        });
       }
     }
   } catch (e) {
     // Backend offline or unreachable
   }
 
-  // 2. Query direct on-chain logs if curve contract is known
+  // 2. Fallback to PHP trades.php (for cPanel robinpump.world)
+  if (loadedTrades.length === 0) {
+    try {
+      const phpUrl = `/trades.php?token=${encodeURIComponent(lookupKey)}&ticker=${encodeURIComponent(token.ticker || '')}`;
+      const res = await fetch(phpUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.trades) && data.trades.length > 0) {
+          loadedTrades = data.trades.map(t => {
+            const parsedTs = t.timestamp ? new Date(t.timestamp).getTime() : Date.now();
+            return {
+              type: (t.is_buy === 1 || t.is_buy === true || t.type === 'buy') ? 'buy' : 'sell',
+              user: t.trader ? (t.trader.slice(0, 6) + '...' + t.trader.slice(-4)) : '0x...',
+              rawTrader: t.trader,
+              eth: Number(t.eth_amount || t.eth || 0),
+              tokens: Number(t.token_amount || t.tokens || 0),
+              timestamp: isNaN(parsedTs) ? Date.now() : parsedTs,
+              time: formatTimeAgo(t.timestamp),
+              txHash: t.tx_hash
+            };
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Fallback / Sync real on-chain curve reserve
   if (token.curveAddress && token.curveAddress.startsWith('0x') && rpcProvider) {
     try {
       const curveContract = new ethers.Contract(token.curveAddress, BONDING_CURVE_ABI, rpcProvider);
-      const currentBlock = await rpcProvider.getBlockNumber();
-      const fromBlock = Math.max(0, currentBlock - 3000);
-      const [buys, sells] = await Promise.all([
-        curveContract.queryFilter(curveContract.filters.TokensPurchased(), fromBlock).catch(() => []),
-        curveContract.queryFilter(curveContract.filters.TokensSold(), fromBlock).catch(() => [])
-      ]);
+      const currentReserveWei = await curveContract.realEthReserve();
+      const currentReserve = Number(ethers.formatEther(currentReserveWei));
+      if (Math.abs(currentReserve - (token.realEth || 0)) > 0.000000001) {
+        token.realEth = currentReserve;
+      }
+    } catch (err) {}
+  }
 
-      const onChainTrades = [];
-      for (const b of buys) {
-        onChainTrades.push({
-          type: 'buy',
-          user: b.args.buyer.slice(0, 6) + '...' + b.args.buyer.slice(-4),
-          rawTrader: b.args.buyer,
-          eth: Number(ethers.formatEther(b.args.ethPaid)),
-          tokens: Number(ethers.formatEther(b.args.tokensReceived)),
-          blockNumber: b.blockNumber,
-          txHash: b.transactionHash,
-          time: 'On-chain'
-        });
-      }
-      for (const s of sells) {
-        onChainTrades.push({
-          type: 'sell',
-          user: s.args.seller.slice(0, 6) + '...' + s.args.seller.slice(-4),
-          rawTrader: s.args.seller,
-          eth: Number(ethers.formatEther(s.args.ethReturned)),
-          tokens: Number(ethers.formatEther(s.args.tokensIn)),
-          blockNumber: s.blockNumber,
-          txHash: s.transactionHash,
-          time: 'On-chain'
-        });
-      }
-
-      if (onChainTrades.length > 0) {
-        onChainTrades.sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0));
-        setTokenTrades(token, onChainTrades);
-        renderTradeHistory();
-        drawChart();
-        return;
-      }
-    } catch (err) {
-      // ignore
-    }
+  if (loadedTrades.length > 0) {
+    loadedTrades.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    setTokenTrades(token, loadedTrades);
   }
 
   renderTradeHistory();
+  drawChart();
 }
 
 function renderTradeHistory() {
@@ -2355,6 +2402,48 @@ function formatPriceString(p) {
 let chartTimeframe = '1m';
 let currentChartData = { points: [] };
 let isChartHoverListenerAttached = false;
+let chartLiveTickerInterval = null;
+
+function updateChartLiveBadge() {
+  const badgeText = document.getElementById("chartLiveTimeText");
+  if (!badgeText) return;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  badgeText.innerText = `Live • ${timeStr}`;
+}
+
+function startChartLiveTicker() {
+  if (chartLiveTickerInterval) clearInterval(chartLiveTickerInterval);
+  updateChartLiveBadge();
+
+  chartLiveTickerInterval = setInterval(async () => {
+    if (currentView !== 'token' || !activeToken || document.hidden) return;
+
+    updateChartLiveBadge();
+
+    // Check on-chain reserve directly from RPC for live accuracy
+    if (activeToken.curveAddress && activeToken.curveAddress.startsWith('0x') && rpcProvider) {
+      try {
+        const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, rpcProvider);
+        const reserveWei = await curveContract.realEthReserve();
+        const freshRealEth = Number(ethers.formatEther(reserveWei));
+        if (Math.abs(freshRealEth - (activeToken.realEth || 0)) > 0.000000001) {
+          activeToken.realEth = freshRealEth;
+          renderTerminal();
+        }
+      } catch (e) {}
+    }
+
+    drawChart();
+  }, 3000);
+}
+
+function stopChartLiveTicker() {
+  if (chartLiveTickerInterval) {
+    clearInterval(chartLiveTickerInterval);
+    chartLiveTickerInterval = null;
+  }
+}
 
 window.setChartTimeframe = function(tf) {
   chartTimeframe = tf;
@@ -2374,81 +2463,153 @@ window.setChartTimeframe = function(tf) {
 function generatePriceHistory(token, timeframe) {
   if (!token) return [];
 
-  const realEth = Number(token.realEth || 0);
-  const ammInfo = getCurveMath(realEth);
+  const now = Date.now();
   const currentUsdRate = (typeof ethUsdPrice === 'number' && ethUsdPrice > 0) ? ethUsdPrice : (AMM_PARAMS.ETH_PRICE_USD || 4200);
-  const currentPriceUsd = token.priceUsd && token.priceUsd > 0 ? token.priceUsd : (ammInfo.currentPriceEth * currentUsdRate);
 
-  const basePriceEth = (AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.VIRTUAL_ETH) / ammInfo.k;
+  // Current on-chain curve metrics
+  const currentRealEth = Number(token.realEth || 0);
+  const currentMath = getCurveMath(currentRealEth);
+  const basePriceEth = (AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.VIRTUAL_ETH) / currentMath.k;
   const basePriceUsd = basePriceEth * currentUsdRate;
+  const currentPriceUsd = currentMath.currentPriceEth * currentUsdRate;
 
-  let numPoints = 30;
+  // Retrieve actual trade events for this token
+  const tokenTrades = getTradesForToken(token) || [];
+
+  // Parse and sort trades chronologically (oldest first)
+  const parsedTrades = tokenTrades
+    .map(t => {
+      let ts = t.timestamp;
+      if (!ts) {
+        ts = t.time === 'Just now' ? now : (now - 60000);
+      } else if (typeof ts === 'string') {
+        ts = new Date(ts).getTime();
+      }
+      return {
+        ...t,
+        ts: isNaN(ts) ? now : ts,
+        eth: Number(t.eth || t.eth_amount || 0),
+        tokens: Number(t.tokens || t.token_amount || 0),
+        isBuy: (t.type === 'buy' || t.is_buy === true || t.is_buy === 1)
+      };
+    })
+    .filter(t => t.ts && !isNaN(t.ts))
+    .sort((a, b) => a.ts - b.ts);
+
+  // Timeframe window setup
   let intervalMs = 60 * 1000;
+  let defaultWindowMs = 30 * 60 * 1000; // 30 minutes
   let labelFormat = 'time';
 
   if (timeframe === '5m') {
-    numPoints = 36;
     intervalMs = 5 * 60 * 1000;
+    defaultWindowMs = 2 * 60 * 60 * 1000; // 2 hours
   } else if (timeframe === '1h') {
-    numPoints = 24;
     intervalMs = 60 * 60 * 1000;
+    defaultWindowMs = 24 * 60 * 60 * 1000; // 24 hours
   } else if (timeframe === '1d') {
-    numPoints = 30;
     intervalMs = 24 * 60 * 60 * 1000;
+    defaultWindowMs = 30 * 24 * 60 * 60 * 1000; // 30 days
     labelFormat = 'date';
   } else if (timeframe === 'all') {
-    numPoints = 40;
-    intervalMs = 12 * 60 * 60 * 1000;
+    intervalMs = 15 * 60 * 1000;
     labelFormat = 'date';
   }
 
-  // Stable pseudo-random seed based on token id and timeframe
-  const seedStr = (token.id || token.ticker || 'token') + timeframe;
-  let hash = 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
-    hash |= 0;
+  // Token creation / earliest known trade time
+  let birthTime = token.createdAtTimestamp;
+  if (!birthTime && parsedTrades.length > 0) {
+    birthTime = parsedTrades[0].ts - 60000;
   }
-  const pseudoRand = (idx) => {
-    const x = Math.sin(hash + idx * 997.13) * 10000;
-    return x - Math.floor(x);
-  };
+  if (!birthTime) {
+    birthTime = now - 15 * 60 * 1000;
+  }
 
-  const now = Date.now();
-  const startTime = now - (numPoints - 1) * intervalMs;
+  let startTime = now - defaultWindowMs;
+  if (timeframe === 'all' || startTime < birthTime) {
+    startTime = Math.min(birthTime, now - 5 * 60 * 1000);
+  }
+
+  const totalDuration = Math.max(intervalMs, now - startTime);
+  const numPoints = Math.max(15, Math.min(60, Math.ceil(totalDuration / intervalMs) + 1));
+  const stepMs = totalDuration / (numPoints - 1);
+
+  // Build price milestones from actual trades
+  let runningEth = 0;
+  const milestones = [];
+
+  // Initial milestone at start time
+  milestones.push({
+    time: Math.min(startTime, birthTime),
+    price: basePriceUsd,
+    trade: null
+  });
+
+  for (const tr of parsedTrades) {
+    if (tr.isBuy) {
+      runningEth += tr.eth;
+    } else {
+      runningEth = Math.max(0, runningEth - tr.eth);
+    }
+    const math = getCurveMath(runningEth);
+    const pUsd = math.currentPriceEth * currentUsdRate;
+    milestones.push({
+      time: tr.ts,
+      price: pUsd,
+      trade: tr
+    });
+  }
+
+  // Always append current live price at now
+  milestones.push({
+    time: now,
+    price: currentPriceUsd,
+    trade: null
+  });
+
+  milestones.sort((a, b) => a.time - b.time);
+
+  // Generate continuous timeline points
   const points = [];
 
-  const startP = Math.max(basePriceUsd, currentPriceUsd * 0.65);
-  const priceDelta = currentPriceUsd - startP;
-
   for (let i = 0; i < numPoints; i++) {
-    const progress = i / (numPoints - 1);
-    const t = startTime + i * intervalMs;
-    const easeProgress = Math.pow(progress, 1.4);
-    let p = startP + (priceDelta * easeProgress);
+    const t = (i === numPoints - 1) ? now : Math.round(startTime + i * stepMs);
 
-    if (i > 0 && i < numPoints - 1) {
-      const noise = (pseudoRand(i) - 0.48) * 0.04 * (currentPriceUsd || 0.0001);
-      p = Math.max(basePriceUsd * 0.9, p + noise);
-    } else if (i === numPoints - 1) {
+    let activeMilestone = milestones[0];
+    for (let m = 0; m < milestones.length; m++) {
+      if (milestones[m].time <= t) {
+        activeMilestone = milestones[m];
+      } else {
+        break;
+      }
+    }
+
+    let p = activeMilestone.price;
+    if (i === numPoints - 1) {
       p = currentPriceUsd;
     }
 
     const mcap = p * AMM_PARAMS.TOKENS_FOR_CURVE;
     const dateObj = new Date(t);
+
     let timeStr = "";
-    if (labelFormat === 'date') {
-      timeStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    if (labelFormat === 'date' || (now - startTime > 36 * 3600 * 1000)) {
+      timeStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
     } else {
       timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
     }
 
+    const fullTimeStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     points.push({
       time: t,
       timeStr,
-      fullTimeStr: dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      fullTimeStr,
       price: p,
-      mcap
+      mcap,
+      trade: (i === numPoints - 1) ? null : activeMilestone.trade,
+      isLive: (i === numPoints - 1)
     });
   }
 
@@ -2515,6 +2676,8 @@ function drawChart(hoverIndex = null) {
     const displayVol = currentToken.volume24hUsd || calculatedVol || 18500;
     volElem.innerText = `$${Math.round(displayVol).toLocaleString()}`;
   }
+
+  updateChartLiveBadge();
 
   const paddingLeft = 10;
   const paddingRight = 68;
@@ -2722,8 +2885,17 @@ function setupChartHoverListeners() {
     drawChart(closestIdx);
 
     if (tooltipPrice) {
+      const tradeTag = pt.trade ? (
+        pt.trade.isBuy
+          ? `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[9px]">🟢 BUY ${pt.trade.eth.toFixed(4)} ETH</span>`
+          : `<span class="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold text-[9px]">🔴 SELL ${pt.trade.eth.toFixed(4)} ETH</span>`
+      ) : (pt.isLive ? `<span class="px-1.5 py-0.5 rounded bg-[#00C805]/20 text-[#00C805] font-bold text-[9px]">⚡ Live Market</span>` : '');
+
       tooltipPrice.innerHTML = `
-        <div class="text-[#00C805] font-bold text-xs">$${formatPriceString(pt.price)}</div>
+        <div class="flex items-center justify-between gap-1 mb-0.5">
+          <span class="text-[#00C805] font-bold text-xs">$${formatPriceString(pt.price)}</span>
+          ${tradeTag}
+        </div>
         <div class="text-[10px] text-gray-400 font-mono">MCap: $${Math.round(pt.mcap).toLocaleString()}</div>
       `;
     }
@@ -2731,7 +2903,7 @@ function setupChartHoverListeners() {
       tooltipTime.innerText = pt.fullTimeStr || pt.timeStr;
     }
 
-    const tooltipWidth = 140;
+    const tooltipWidth = 160;
     let tipLeft = pt.x + 12;
     if (tipLeft + tooltipWidth > canvas.parentElement.clientWidth) {
       tipLeft = pt.x - tooltipWidth - 12;
@@ -2919,15 +3091,56 @@ async function executeSwap() {
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
 
-      recordTrade(activeToken, {
+      const tradeTs = Date.now();
+      const buyTrade = {
         type: "buy",
         user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
         rawTrader: userWallet.address,
         eth: inputAmount,
         tokens: Math.floor(inputAmount * 28000000),
+        timestamp: tradeTs,
         time: "Just now",
         txHash: receipt.hash
-      });
+      };
+      recordTrade(activeToken, buyTrade);
+
+      // Re-query curve on-chain reserve immediately
+      try {
+        const freshReserveWei = await curveContract.realEthReserve();
+        activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+      } catch (e) {
+        activeToken.realEth = (Number(activeToken.realEth) || 0) + inputAmount;
+      }
+
+      // Persist to trades.php and Node backend
+      const buyPayload = {
+        token: activeToken.id || activeToken.address,
+        trader: userWallet.address,
+        isBuy: true,
+        ethAmount: inputAmount,
+        tokenAmount: buyTrade.tokens,
+        txHash: receipt.hash,
+        timestamp: new Date(tradeTs).toISOString()
+      };
+      try {
+        fetch('/trades.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buyPayload)
+        }).catch(() => {});
+      } catch (e) {}
+      if (isBackendConnected) {
+        try {
+          fetch(`${BACKEND_API_URL}/tokens/${activeToken.id}/trades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buyPayload)
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      renderTerminal();
+      drawChart();
 
       alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
     } else {
@@ -2974,15 +3187,56 @@ async function executeSwap() {
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
 
-      recordTrade(activeToken, {
+      const tradeTs = Date.now();
+      const sellTrade = {
         type: "sell",
         user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
         rawTrader: userWallet.address,
         eth: inputAmount * 0.00000003,
         tokens: Math.floor(inputAmount),
+        timestamp: tradeTs,
         time: "Just now",
         txHash: receipt.hash
-      });
+      };
+      recordTrade(activeToken, sellTrade);
+
+      // Re-query curve on-chain reserve immediately
+      try {
+        const freshReserveWei = await curveContract.realEthReserve();
+        activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+      } catch (e) {
+        activeToken.realEth = Math.max(0, (Number(activeToken.realEth) || 0) - sellTrade.eth);
+      }
+
+      // Persist to trades.php and Node backend
+      const sellPayload = {
+        token: activeToken.id || activeToken.address,
+        trader: userWallet.address,
+        isBuy: false,
+        ethAmount: sellTrade.eth,
+        tokenAmount: sellTrade.tokens,
+        txHash: receipt.hash,
+        timestamp: new Date(tradeTs).toISOString()
+      };
+      try {
+        fetch('/trades.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sellPayload)
+        }).catch(() => {});
+      } catch (e) {}
+      if (isBackendConnected) {
+        try {
+          fetch(`${BACKEND_API_URL}/tokens/${activeToken.id}/trades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sellPayload)
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      renderTerminal();
+      drawChart();
 
       alert(`✅ Instant Sell Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
     }

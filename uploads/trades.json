@@ -1,0 +1,44 @@
+{
+  "0xa2cf005ab6e824006e0b853b438a197695e78410": [
+    {
+      "tx_hash": "0xd640c57a157efef7d105122a4b49d08bb58346a6e6a8b9d84857a80db49d5a8c",
+      "trader": "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+      "is_buy": false,
+      "eth_amount": 0.00019602,
+      "token_amount": 316675,
+      "timestamp": "2026-09-28T13:22:05.246Z"
+    },
+    {
+      "tx_hash": "0x2a3674ca1dddbef992452bfc6c378dff689b10fa4a5c8754fbbd758e82fe1ff7",
+      "trader": "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+      "is_buy": true,
+      "eth_amount": 0.0002,
+      "token_amount": 316675,
+      "timestamp": "2026-09-28T13:06:05.008Z"
+    },
+    {
+      "tx_hash": "0xeb2726dff28e1e1ec6df2b900cd488300bf1be49f68829d696c5bf14869952d0",
+      "trader": "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+      "is_buy": false,
+      "eth_amount": 0.00009801,
+      "token_amount": 158369,
+      "timestamp": "2026-09-28T13:02:31.422Z"
+    },
+    {
+      "tx_hash": "0xbd7bdf32e0479ea6a921c99ac56c321a25e1b61500f32adfbdf38d90b43e97f5",
+      "trader": "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+      "is_buy": false,
+      "eth_amount": 0.00009795,
+      "token_amount": 158276,
+      "timestamp": "2026-09-28T12:58:08.190Z"
+    },
+    {
+      "tx_hash": "0xa98e3846d7e6773b7cf36ff5962ef997542e11af67c541e495195755baeda445",
+      "trader": "0xe14482e488A7Cee514fbB7Ac99D323a9070e90C8",
+      "is_buy": false,
+      "eth_amount": 0.00029408,
+      "token_amount": 474823,
+      "timestamp": "2026-09-28T12:56:59.043Z"
+    }
+  ]
+}

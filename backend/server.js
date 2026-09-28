@@ -344,10 +344,42 @@ app.get('/api/tokens/:id/candles', async (req, res) => {
     const { timeframe = '1m', limit = 100 } = req.query;
 
     const candles = await query(
-      'SELECT * FROM candles WHERE token_address = ? AND timeframe = ? ORDER BY bucket_timestamp ASC LIMIT ?',
-      [id, timeframe, parseInt(limit)]
+      `SELECT * FROM candles 
+       WHERE (LOWER(token_address) = LOWER(?) OR LOWER(token_address) IN (SELECT LOWER(id) FROM tokens WHERE LOWER(id) = LOWER(?) OR LOWER(symbol) = LOWER(?) OR LOWER(curve_address) = LOWER(?)))
+         AND timeframe = ? 
+       ORDER BY bucket_timestamp ASC LIMIT ?`,
+      [id, id, id, id, timeframe, parseInt(limit)]
     );
     res.json({ success: true, candles });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Record a new trade from client
+app.post('/api/tokens/:id/trades', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { trader = '0x...', isBuy = true, ethAmount = 0, tokenAmount = 0, txHash = '' } = req.body;
+    await query(
+      `INSERT INTO trades (token_address, tx_hash, trader, is_buy, eth_amount, token_amount)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(tx_hash) DO NOTHING`,
+      [id, txHash, trader, isBuy ? 1 : 0, ethAmount, tokenAmount]
+    );
+    broadcast({
+      type: 'NEW_TRADE',
+      trade: {
+        tokenAddress: id,
+        trader,
+        isBuy: Boolean(isBuy),
+        ethAmount: Number(ethAmount),
+        tokenAmount: Number(tokenAmount),
+        txHash,
+        time: new Date().toISOString()
+      }
+    });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
