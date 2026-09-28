@@ -2702,6 +2702,75 @@ function updateTaxSummary() {
   `;
 }
 
+// --- Elegant Token Creation Success Modal ---
+let successModalTimer = null;
+let successModalInterval = null;
+
+function showTokenCreatedSuccessModal(token, txHash) {
+  const modal = document.getElementById("createSuccessModal");
+  if (!modal) {
+    if (token) openTokenDetail(token.id);
+    return;
+  }
+
+  const iconEl = document.getElementById("successModalTokenIcon");
+  const nameEl = document.getElementById("successModalTokenName");
+  const tickerEl = document.getElementById("successModalTokenTicker");
+  const addrEl = document.getElementById("successModalContractAddr");
+  const explorerLink = document.getElementById("successModalExplorerLink");
+  const countdownEl = document.getElementById("successModalCountdown");
+
+  if (iconEl) {
+    iconEl.innerHTML = renderTokenIconHtml(token.icon, "w-12 h-12 text-2xl", token);
+  }
+  if (nameEl) nameEl.innerText = token.name || "Coin";
+  if (tickerEl) tickerEl.innerText = `$${token.ticker || "TOKEN"}`;
+  if (addrEl) {
+    addrEl.innerText = token.address ? `Contract: ${token.address}` : "Bonding curve initialized";
+  }
+  if (explorerLink && txHash) {
+    explorerLink.href = `https://robinhoodchain.blockscout.com/tx/${txHash}`;
+    explorerLink.style.display = "flex";
+  } else if (explorerLink) {
+    explorerLink.style.display = "none";
+  }
+
+  // Pre-switch to the token terminal in the background so it's fully ready
+  openTokenDetail(token.id);
+
+  modal.classList.remove("hidden");
+
+  let remaining = 2;
+  if (countdownEl) countdownEl.innerText = remaining;
+
+  if (successModalInterval) clearInterval(successModalInterval);
+  if (successModalTimer) clearTimeout(successModalTimer);
+
+  successModalInterval = setInterval(() => {
+    remaining--;
+    if (countdownEl) countdownEl.innerText = Math.max(0, remaining);
+    if (remaining <= 0) {
+      clearInterval(successModalInterval);
+    }
+  }, 1000);
+
+  successModalTimer = setTimeout(() => {
+    dismissSuccessModal();
+  }, 2400);
+}
+
+function dismissSuccessModal() {
+  if (successModalInterval) clearInterval(successModalInterval);
+  if (successModalTimer) clearTimeout(successModalTimer);
+  const modal = document.getElementById("createSuccessModal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+  if (activeToken) {
+    openTokenDetail(activeToken.id);
+  }
+}
+
 async function openCreateModal() {
   document.getElementById("createTokenModal").classList.remove("hidden");
   selectTaxPreset("fair");
@@ -3077,20 +3146,13 @@ async function handleCreateTokenSubmit(e) {
       localStorage.setItem(LOCAL_STORAGE_TOKENS_KEY, JSON.stringify(tokens));
     } catch (e) {}
     closeCreateModal();
-    openTokenDetail(newToken.id);
     renderTokenGrid();
     renderKothBanner();
     await refreshUserWalletData();
     setTimeout(fetchOnChainTokens, 3000);
 
-    alert(
-      `🎉 SUCCESS! $${ticker} DEPLOYED ON ROBINHOOD CHAIN MAINNET!\n\n` +
-      `• Token: ${deployedTokenAddress || 'Created'}\n` +
-      `• Curve: ${deployedCurveAddress || 'Created'}\n` +
-      `• Tx Hash: ${receipt.hash}\n` +
-      `• Explorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}\n\n` +
-      `Graduation Target: 2.0 ETH -> Uniswap v4`
-    );
+    // Elegant Success Modal with automatic transition to Token Page
+    showTokenCreatedSuccessModal(newToken, receipt.hash);
   } catch (err) {
     console.error("Token creation error:", err);
     alert("Transaction failed or rejected: " + (err.reason || err.message || err));

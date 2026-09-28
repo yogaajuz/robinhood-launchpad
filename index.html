@@ -683,6 +683,55 @@
     </div>
   </div>
 
+  <!-- Elegant Token Creation Success Modal -->
+  <div id="createSuccessModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-gradient-to-b from-[#182335] via-[#121721] to-[#0b0e14] border border-[#00C805]/40 rounded-3xl w-full max-w-md p-6 sm:p-7 shadow-2xl relative text-center overflow-hidden">
+      <!-- Glow effect -->
+      <div class="absolute -top-16 -right-16 w-44 h-44 bg-[#00C805]/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-16 -left-16 w-44 h-44 bg-purple-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="w-16 h-16 rounded-2xl bg-[#00C805]/15 border border-[#00C805]/40 flex items-center justify-center text-3xl mx-auto mb-3.5 shadow-lg shadow-[#00C805]/20">
+        🚀
+      </div>
+
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold mb-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>Robinhood Chain Mainnet</span>
+      </div>
+
+      <h3 class="text-xl font-black text-white tracking-tight">Token Created Successfully!</h3>
+      <p class="text-xs text-gray-300 mt-1 leading-relaxed">
+        Your meme coin and bonding curve are live.
+      </p>
+
+      <!-- Token Preview Card -->
+      <div class="my-4 p-3.5 rounded-2xl bg-[#0e131d] border border-gray-800 flex items-center gap-3 text-left">
+        <div id="successModalTokenIcon" class="w-12 h-12 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-[#181f2c]"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span id="successModalTokenName" class="font-bold text-white text-sm truncate">Coin Name</span>
+            <span id="successModalTokenTicker" class="text-xs font-mono font-bold text-[#00C805] px-1.5 py-0.5 rounded bg-[#00C805]/10 border border-[#00C805]/20">$TICKER</span>
+          </div>
+          <p id="successModalContractAddr" class="text-[10px] font-mono text-gray-400 mt-0.5 truncate">0x...</p>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-col gap-2">
+        <button id="successModalGoBtn" onclick="dismissSuccessModal()" class="w-full py-3 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2">
+          <span>Go to Token Page Now</span> <span>→</span>
+        </button>
+        <a id="successModalExplorerLink" href="#" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-400 hover:text-white transition flex items-center justify-center gap-1 py-1">
+          <span>View Tx on Blockscout Explorer</span> <span class="text-[10px]">↗</span>
+        </a>
+      </div>
+
+      <div class="mt-3 text-[11px] text-gray-500">
+        Redirecting automatically in <span id="successModalCountdown" class="font-mono text-[#00C805] font-bold">2</span>s...
+      </div>
+    </div>
+  </div>
+
   <script src="launchpad.js"></script>
 </body>
 </html>
