@@ -708,13 +708,6 @@ function renderSocialBadgesHtml(token) {
     `);
   }
 
-  // Manage / Edit links button
-  badges.push(`
-    <button type="button" onclick="openEditSocialsModal('${token.id}')" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#181f2c] hover:bg-[#232c3d] border border-gray-700 hover:border-gray-500 text-[11px] text-gray-300 hover:text-white transition font-medium cursor-pointer" title="Edit or add official community links">
-      <span>✏️</span> <span>${badges.length === 0 ? '+ Add Social Links' : 'Edit Links'}</span>
-    </button>
-  `);
-
   return badges.join('');
 }
 
