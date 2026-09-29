@@ -27,8 +27,22 @@ let RH_CHAIN_CONFIG = RH_MAINNET_CONFIG;
 let FACTORY_CONTRACT_ADDRESS = '0xD7d41a4E8EA876078227697c1C973fE92a8BCBBa';
 const V4_ROUTER_ADDRESS = '0x00c5fc8CD66B9b0D9C021D2329AEAB05b9aEfB10';
 const UNISWAP_V4_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951';
+let V4_HOOK_CONTRACT_ADDRESS = '0x3Cb4Cf03EDc87eCF5B74725d8981e110dF67c382';
 
 // Full Smart Contract ABIs for On-Chain Interactions
+const V4_HOOK_ABI = [
+  "function buyTokens(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint256 minTokensOut) external payable returns (uint256 tokensOut)",
+  "function sellTokens(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint256 tokenAmount, uint256 minEthOut) external returns (uint256 ethOut)",
+  "function claimHolderDividends(bytes32 poolId) external",
+  "function getTokensOutForEth(bytes32 poolId, uint256 ethIn) external view returns (uint256 tokensOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
+  "function getEthOutForTokens(bytes32 poolId, uint256 tokensIn) external view returns (uint256 ethOut, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
+  "function curves(bytes32 poolId) external view returns (address token, address creator, uint256 creatorTaxBps, uint256 holderTaxBps, uint256 realEthReserve, uint256 tokenReserve, bool isGraduated, uint256 accEthPerShare, uint256 totalHolderRewardsDistributed)",
+  "function poolManager() external view returns (address)",
+  "function protocolFeeRecipient() external view returns (address)",
+  "event BondingCurveInitialized(bytes32 indexed poolId, address indexed token, address indexed creator, uint256 creatorTaxBps, uint256 holderTaxBps)",
+  "event CurveSwapExecuted(bytes32 indexed poolId, address indexed trader, bool isBuy, uint256 ethAmount, uint256 tokenAmount, uint256 protocolFee, uint256 creatorFee, uint256 holderFee)",
+  "event GraduatedToUniswapV4(bytes32 indexed poolId, address indexed token, uint256 totalEth, uint256 totalTokens)"
+];
 const FACTORY_ABI = [
   "function createToken(string name, string symbol, string metadataUri, uint256 creatorTaxBps, uint256 holderTaxBps) external payable returns (address tokenAddress, address curveAddress)",
   "function totalLaunches() external view returns (uint256)",
@@ -1093,6 +1107,10 @@ async function initBackendSync() {
         FACTORY_CONTRACT_ADDRESS = healthData.factoryAddress;
         console.log(`📡 [Mainnet] Using Factory Contract: ${FACTORY_CONTRACT_ADDRESS}`);
       }
+      if (healthData.hookAddress && healthData.hookAddress.startsWith("0x") && healthData.hookAddress !== '0x0000000000000000000000000000000000000000') {
+        V4_HOOK_CONTRACT_ADDRESS = healthData.hookAddress;
+        console.log(`🦄 [Uniswap v4 Hook] Using Hook Contract: ${V4_HOOK_CONTRACT_ADDRESS}`);
+      }
       console.log(`✅ Connected to Launchpad Backend at ${BACKEND_API_URL}`);
       await fetchTokensFromDb();
       connectWebSocket();
@@ -1461,6 +1479,15 @@ function switchView(viewName, tokenId = null) {
       blockscoutLink.href = (activeToken.address && activeToken.address.startsWith("0x"))
         ? `https://robinhoodchain.blockscout.com/token/${activeToken.address}`
         : "https://robinhoodchain.blockscout.com";
+    }
+    const bitgetLink = document.getElementById("tokenBitgetSwapLink");
+    if (bitgetLink) {
+      if (activeToken.address && activeToken.address.startsWith("0x")) {
+        bitgetLink.href = `https://web3.bitget.com/en/swap?chain=4663&outputCurrency=${activeToken.address}`;
+        bitgetLink.style.display = "inline-flex";
+      } else {
+        bitgetLink.style.display = "none";
+      }
     }
     renderTerminal();
     fetchTokenTrades(activeToken);
@@ -2205,6 +2232,16 @@ function renderTerminal() {
     remainingText.innerText = `${remainingEth.toFixed(2)} ETH to Uniswap v4`;
   }
 
+  const bitgetLink = document.getElementById("tokenBitgetSwapLink");
+  if (bitgetLink) {
+    if (activeToken.address && activeToken.address.startsWith("0x")) {
+      bitgetLink.href = `https://web3.bitget.com/en/swap?chain=4663&outputCurrency=${activeToken.address}`;
+      bitgetLink.style.display = "inline-flex";
+    } else {
+      bitgetLink.style.display = "none";
+    }
+  }
+
   // User holdings
   const tokenHolding = userWallet.holdings[activeToken.id] || 0;
   document.getElementById("userTokenBalance").innerText = `${tokenHolding.toLocaleString()} $${activeToken.ticker}`;
@@ -2238,8 +2275,28 @@ async function claimRewards(targetCurveAddress = null) {
   }
 
   try {
-    const curveContract = new ethers.Contract(curveToClaim, BONDING_CURVE_ABI, browserSigner);
-    const tx = await curveContract.claimHolderRewards();
+    let tx;
+    if (curveToClaim.toLowerCase() === V4_HOOK_CONTRACT_ADDRESS.toLowerCase() || (activeToken && activeToken.isHook)) {
+      const hookContract = new ethers.Contract(V4_HOOK_CONTRACT_ADDRESS, V4_HOOK_ABI, browserSigner);
+      const tokenAddr = (activeToken && activeToken.address) ? activeToken.address : curveToClaim;
+      const key = {
+        currency0: '0x0000000000000000000000000000000000000000',
+        currency1: tokenAddr,
+        fee: 3000,
+        tickSpacing: 60,
+        hooks: V4_HOOK_CONTRACT_ADDRESS
+      };
+      const poolId = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+          [key]
+        )
+      );
+      tx = await hookContract.claimHolderDividends(poolId);
+    } else {
+      const curveContract = new ethers.Contract(curveToClaim, BONDING_CURVE_ABI, browserSigner);
+      tx = await curveContract.claimHolderRewards();
+    }
     alert("Claim transaction submitted! Waiting for block confirmation on Robinhood Chain...");
     const receipt = await tx.wait();
 
@@ -3281,7 +3338,10 @@ async function executeSwap() {
       actionBtn.innerText = "Confirm in MetaMask...";
     }
 
-    const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserSigner);
+    const isHookCurve = (activeToken.curveAddress && activeToken.curveAddress.toLowerCase() === V4_HOOK_CONTRACT_ADDRESS.toLowerCase()) || activeToken.isHook;
+    const curveContract = isHookCurve
+      ? new ethers.Contract(V4_HOOK_CONTRACT_ADDRESS, V4_HOOK_ABI, browserSigner)
+      : new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, browserSigner);
 
     if (swapMode === "buy") {
       if (inputAmount > userWallet.balanceEth) {
@@ -3291,7 +3351,19 @@ async function executeSwap() {
 
       const ethWei = ethers.parseEther(inputAmount.toString());
       if (actionBtn) actionBtn.innerText = "Broadcasting Buy Tx...";
-      const tx = await curveContract.buyTokens(0, { value: ethWei });
+      let tx;
+      if (isHookCurve) {
+        const poolKey = {
+          currency0: '0x0000000000000000000000000000000000000000',
+          currency1: activeToken.address,
+          fee: 3000,
+          tickSpacing: 60,
+          hooks: V4_HOOK_CONTRACT_ADDRESS
+        };
+        tx = await curveContract.buyTokens(poolKey, 0n, { value: ethWei });
+      } else {
+        tx = await curveContract.buyTokens(0, { value: ethWei });
+      }
 
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
@@ -3311,8 +3383,26 @@ async function executeSwap() {
 
       // Re-query curve on-chain reserve immediately
       try {
-        const freshReserveWei = await curveContract.realEthReserve();
-        activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+        if (isHookCurve) {
+          const poolKey = {
+            currency0: '0x0000000000000000000000000000000000000000',
+            currency1: activeToken.address,
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: V4_HOOK_CONTRACT_ADDRESS
+          };
+          const poolId = ethers.keccak256(
+            ethers.AbiCoder.defaultAbiCoder().encode(
+              ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+              [poolKey]
+            )
+          );
+          const curveData = await curveContract.curves(poolId);
+          activeToken.realEth = Number(ethers.formatEther(curveData.realEthReserve));
+        } else {
+          const freshReserveWei = await curveContract.realEthReserve();
+          activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+        }
       } catch (e) {
         activeToken.realEth = (Number(activeToken.realEth) || 0) + inputAmount;
       }
@@ -3376,18 +3466,31 @@ async function executeSwap() {
         return;
       }
 
+      const spenderAddress = isHookCurve ? V4_HOOK_CONTRACT_ADDRESS : activeToken.curveAddress;
       if (actionBtn) actionBtn.innerText = "Checking Token Approval...";
-      const allowance = await tokenContract.allowance(userWallet.address, activeToken.curveAddress);
+      const allowance = await tokenContract.allowance(userWallet.address, spenderAddress);
 
       if (allowance < tokensWei) {
         if (actionBtn) actionBtn.innerText = "Approve in MetaMask...";
         // Exact approval for safety (avoids Web3 wallet drainer/phishing heuristics)
-        const approveTx = await tokenContract.approve(activeToken.curveAddress, tokensWei);
+        const approveTx = await tokenContract.approve(spenderAddress, tokensWei);
         await approveTx.wait();
       }
 
       if (actionBtn) actionBtn.innerText = "Broadcasting Sell Tx...";
-      const tx = await curveContract.sellTokens(tokensWei, 0);
+      let tx;
+      if (isHookCurve) {
+        const poolKey = {
+          currency0: '0x0000000000000000000000000000000000000000',
+          currency1: activeToken.address,
+          fee: 3000,
+          tickSpacing: 60,
+          hooks: V4_HOOK_CONTRACT_ADDRESS
+        };
+        tx = await curveContract.sellTokens(poolKey, tokensWei, 0n);
+      } else {
+        tx = await curveContract.sellTokens(tokensWei, 0);
+      }
 
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();

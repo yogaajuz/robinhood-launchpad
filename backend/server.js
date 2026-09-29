@@ -37,11 +37,13 @@ if (fs.existsSync(assetsDir)) {
   app.use('/assets', express.static(assetsDir));
 }
 
-// Monolith Hosting Mode: If frontend directory exists, serve frontend static files on same domain!
+// Monolith Hosting Mode: Serve frontend and root static files
 const frontendDir = path.join(__dirname, '../frontend');
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir));
 }
+const rootDir = path.join(__dirname, '..');
+app.use(express.static(rootDir));
 
 // Serve compiled contract artifacts
 const contractsDir = path.join(__dirname, '../contracts');
@@ -85,6 +87,7 @@ app.get('/api/health', (req, res) => {
     chainId: parseInt(process.env.CHAIN_ID || '4663'),
     factoryAddress: process.env.FACTORY_ADDRESS || process.env.FACTORY_CONTRACT_ADDRESS || null,
     routerAddress: process.env.ROUTER_V4_ADDRESS || process.env.UNISWAP_V4_ROUTER_ADDRESS || null,
+    hookAddress: process.env.V4_HOOK_CONTRACT_ADDRESS || '0x3Cb4Cf03EDc87eCF5B74725d8981e110dF67c382',
     timestamp: new Date().toISOString()
   });
 });
