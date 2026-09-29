@@ -15,6 +15,7 @@ $files = @(
     @{ Local = "deploy.html"; Entry = "deploy.html" },
     @{ Local = "frontend\deploy.html"; Entry = "frontend/deploy.html" },
     @{ Local = "backend\server.js"; Entry = "backend/server.js" },
+    @{ Local = "backend\indexer.js"; Entry = "backend/indexer.js" },
     @{ Local = "trades.php"; Entry = "trades.php" },
     @{ Local = "socials.php"; Entry = "socials.php" },
     @{ Local = "upload.php"; Entry = "upload.php" }

@@ -826,13 +826,70 @@ function renderMiniSocialsHtml(token) {
   return `<div class="flex items-center gap-1.5 text-xs bg-[#121721] px-2 py-0.5 rounded-lg border border-gray-800 shrink-0">${items.join('')}</div>`;
 }
 
-// --- AMM Math Calculations ---
-function getCurveMath(realEth) {
+// --- AMM Math Calculations & Uniswap v4 Graduation Progress ---
+function getCurveMath(realEthOrToken, maybeGraduated = false) {
+  let realEth = 0;
+  let isGraduated = false;
+
+  if (typeof realEthOrToken === 'object' && realEthOrToken !== null) {
+    realEth = Number(realEthOrToken.realEth) || 0;
+    isGraduated = Boolean(realEthOrToken.graduated || realEthOrToken.isGraduated || realEthOrToken.is_graduated);
+  } else {
+    realEth = Number(realEthOrToken) || 0;
+    isGraduated = Boolean(maybeGraduated);
+  }
+
+  if (isNaN(realEth) || realEth < 0) realEth = 0;
+
+  const target = AMM_PARAMS.GRADUATION_ETH_TARGET || 2.0;
+  if (realEth >= target) {
+    isGraduated = true;
+  }
+
   const k = AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.TOKENS_FOR_CURVE;
   const currentTotalEth = AMM_PARAMS.VIRTUAL_ETH + realEth;
-  const tokensLeft = k / currentTotalEth;
-  const tokensSold = AMM_PARAMS.TOKENS_FOR_CURVE - tokensLeft;
-  const progressPercent = Math.min(100, (realEth / AMM_PARAMS.GRADUATION_ETH_TARGET) * 100);
+  let tokensLeft = Math.max(0, Math.min(AMM_PARAMS.TOKENS_FOR_CURVE, k / currentTotalEth));
+  if (isGraduated) {
+    tokensLeft = 0;
+  }
+  const tokensSold = Math.max(0, AMM_PARAMS.TOKENS_FOR_CURVE - tokensLeft);
+
+  // Exact graduation percentage progress (0.0% to 100.0%)
+  let progressPercent = (realEth / target) * 100;
+  if (isGraduated) {
+    progressPercent = 100.0;
+  }
+  progressPercent = Math.min(100, Math.max(0, progressPercent));
+
+  // High precision formatted text for UI (handling tiny initial trades gracefully)
+  let formattedPercent = '0.0%';
+  if (isGraduated || progressPercent >= 100) {
+    formattedPercent = '100.0%';
+  } else if (progressPercent > 0 && progressPercent < 0.01) {
+    formattedPercent = `${progressPercent.toFixed(4)}%`;
+  } else if (progressPercent > 0 && progressPercent < 0.1) {
+    formattedPercent = `${progressPercent.toFixed(3)}%`;
+  } else {
+    formattedPercent = `${progressPercent.toFixed(1)}%`;
+  }
+
+  // Visual bar width (give at least a clean visible indicator if any trades exist)
+  let visualBarWidth = 0;
+  if (isGraduated || progressPercent >= 100) {
+    visualBarWidth = 100;
+  } else if (progressPercent > 0) {
+    visualBarWidth = Math.max(1.8, Number(progressPercent.toFixed(2)));
+  }
+
+  const remainingEth = Math.max(0, target - realEth);
+  const remainingEthFormatted = isGraduated 
+    ? '0.00 ETH (Graduated)' 
+    : `${remainingEth < 0.01 && remainingEth > 0 ? remainingEth.toFixed(4) : remainingEth.toFixed(2)} ETH`;
+
+  const raisedEthFormatted = isGraduated
+    ? `${target.toFixed(2)} / ${target.toFixed(2)} ETH`
+    : `${realEth < 0.01 && realEth > 0 ? realEth.toFixed(4) : realEth.toFixed(2)} / ${target.toFixed(2)} ETH`;
+
   const currentPriceEth = (currentTotalEth * currentTotalEth) / k;
 
   return {
@@ -840,8 +897,14 @@ function getCurveMath(realEth) {
     currentTotalEth,
     tokensLeft,
     tokensSold,
-    progressPercent,
-    currentPriceEth
+    progressPercent: Number(progressPercent.toFixed(4)),
+    formattedPercent,
+    visualBarWidth,
+    remainingEth,
+    remainingEthFormatted,
+    raisedEthFormatted,
+    currentPriceEth,
+    isGraduated
   };
 }
 
@@ -1036,7 +1099,8 @@ async function fetchOnChainTokens() {
       "function isGraduated() external view returns (bool)",
       "function creator() external view returns (address)",
       "function creatorTaxBps() external view returns (uint256)",
-      "function holderTaxBps() external view returns (uint256)"
+      "function holderTaxBps() external view returns (uint256)",
+      "function getBondingProgress() external view returns (uint256)"
     ];
     const TOKEN_READER_ABI = [
       "function name() external view returns (string)",
@@ -1052,7 +1116,7 @@ async function fetchOnChainTokens() {
         const tokenAddr = await curve.token();
         const token = new ethers.Contract(tokenAddr, TOKEN_READER_ABI, provider);
 
-        const [tName, tSym, tUri, realEthWei, isGrad, creator, devTax, holderTax] = await Promise.all([
+        const [tName, tSym, tUri, realEthWei, isGrad, creator, devTax, holderTax, bondingBps] = await Promise.all([
           token.name().catch(() => 'Robinhood Coin'),
           token.symbol().catch(() => 'RH'),
           token.metadataUri().catch(() => ''),
@@ -1060,7 +1124,8 @@ async function fetchOnChainTokens() {
           curve.isGraduated().catch(() => false),
           curve.creator().catch(() => '0x0000000000000000000000000000000000000000'),
           curve.creatorTaxBps().catch(() => 0n),
-          curve.holderTaxBps().catch(() => 0n)
+          curve.holderTaxBps().catch(() => 0n),
+          curve.getBondingProgress().catch(() => null)
         ]);
 
         const realEth = Number(ethers.formatEther(realEthWei));
@@ -1135,7 +1200,7 @@ async function fetchOnChainTokens() {
           marketCapUsd,
           change24h: realEth > 0 ? 168.4 : 0.0,
           volume24hUsd,
-          graduated: Boolean(isGrad),
+          graduated: Boolean(isGrad) || realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET || (bondingBps !== null && Number(bondingBps) >= 10000),
           creatorTax: Number(devTax) / 100,
           holderTax: Number(holderTax) / 100,
           website: tokenSocials.website || null,
@@ -1327,13 +1392,20 @@ function connectWebSocket() {
           } else {
             targetToken.realEth = Math.max(0, (Number(targetToken.realEth) || 0) - Number(tr.ethAmount || 0));
           }
+          if (targetToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET) {
+            targetToken.graduated = true;
+          }
           if (activeToken && (
             (activeToken.id && activeToken.id.toLowerCase() === (targetToken.id || '').toLowerCase()) ||
             (activeToken.address && activeToken.address.toLowerCase() === (targetToken.address || '').toLowerCase())
           )) {
+            activeToken.realEth = targetToken.realEth;
+            activeToken.graduated = targetToken.graduated;
             renderTerminal();
             drawChart();
           }
+          renderTokenGrid();
+          renderKothBanner();
           updatePlatformStats();
         }
       } else if (msg.type === 'TOKEN_CREATED') {
@@ -1947,9 +2019,8 @@ function renderUserProfile() {
         <!-- Launched Coins List -->
         <div class="grid grid-cols-1 gap-4">
           ${launchedTokens.map(t => {
-            const math = getCurveMath(t.realEth);
-            const remainingEth = Math.max(0, AMM_PARAMS.GRADUATION_ETH_TARGET - t.realEth);
-            const isGraduated = t.graduated || t.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET;
+            const math = getCurveMath(t);
+            const isGraduated = math.isGraduated;
             const tokenTrades = getTradesForToken(t);
             const explorerAddr = t.address || t.curveAddress || '';
             const reward = userWallet.claimableRewardsEth[t.id] || 0;
@@ -2006,15 +2077,15 @@ function renderUserProfile() {
                       <span>🎯</span> <span>Bonding Progress</span>
                     </span>
                     <span class="font-mono font-bold text-white text-xs">
-                      ${t.realEth.toFixed(3)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(1)} ETH
+                      ${math.raisedEthFormatted}
                     </span>
                   </div>
                   <div class="w-full h-2.5 rounded-full bg-[#181f2c] overflow-hidden border border-gray-800 relative">
-                    <div class="h-full bg-gradient-to-r from-emerald-500 via-[#00C805] to-cyan-400 rounded-full transition-all duration-500" style="width: ${math.progressPercent}%;"></div>
+                    <div class="h-full bg-gradient-to-r from-emerald-500 via-[#00C805] to-cyan-400 rounded-full transition-all duration-500" style="width: ${math.visualBarWidth}%;"></div>
                   </div>
                   <div class="flex items-center justify-between text-[10px] text-gray-400 mt-1.5 font-mono">
-                    <span class="text-[#00C805] font-bold">${math.progressPercent.toFixed(1)}% Completed</span>
-                    <span>${isGraduated ? '🎉 Ready for Uniswap v4' : `${remainingEth.toFixed(3)} ETH to v4`}</span>
+                    <span class="text-[#00C805] font-bold">${math.formattedPercent} Completed</span>
+                    <span>${isGraduated ? '🎉 Ready for Uniswap v4' : `${math.remainingEthFormatted} to v4`}</span>
                   </div>
                 </div>
 
@@ -2085,7 +2156,7 @@ function renderUserProfile() {
             const reward = userWallet.claimableRewardsEth[t.id] || 0;
             const rewardUsd = (reward * ethUsdPrice).toFixed(2);
             const tokenValueUsd = (holding * t.priceEth * ethUsdPrice).toFixed(2);
-            const math = getCurveMath(t.realEth);
+            const math = getCurveMath(t);
 
             return `
               <div class="rounded-2xl bg-[#181f2c] hover:bg-[#1c2434] border border-[#242e42] hover:border-gray-700 p-4 sm:p-5 transition shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2106,7 +2177,7 @@ function renderUserProfile() {
                       <span>•</span>
                       <span>MCap: <b class="font-mono text-gray-200">$${t.marketCapUsd.toLocaleString()}</b></span>
                       <span>•</span>
-                      <span class="text-purple-300 font-semibold">${math.progressPercent.toFixed(1)}% to v4</span>
+                      <span class="text-purple-300 font-semibold">${math.isGraduated ? '🎓 Graduated v4' : `${math.formattedPercent} to v4`}</span>
                     </div>
                     <div class="mt-1.5">
                       ${renderMiniSocialsHtml(t)}
@@ -2173,7 +2244,7 @@ function renderKothBanner() {
   const banner = document.getElementById("kothBanner");
   if (!banner) return;
 
-  const math = getCurveMath(koth.realEth);
+  const math = getCurveMath(koth);
 
   banner.innerHTML = `
     <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#181f2c] via-[#1b263b] to-[#181f2c] border border-[#00C805]/30 hover:border-[#00C805]/60 p-4 sm:p-5 shadow-lg shadow-black/40 cursor-pointer transition" onclick="openTokenDetail('${koth.id}')">
@@ -2205,11 +2276,11 @@ function renderKothBanner() {
             </div>
             <div class="flex items-center gap-2 mt-0.5">
               <div class="w-32 sm:w-44 bg-gray-800 h-2.5 rounded-full overflow-hidden">
-                <div class="progress-fill h-full" style="width: ${math.progressPercent.toFixed(1)}%"></div>
+                <div class="progress-fill h-full" style="width: ${math.visualBarWidth}%"></div>
               </div>
-              <span class="font-mono text-xs font-bold text-[#00C805]">${math.progressPercent.toFixed(1)}%</span>
+              <span class="font-mono text-xs font-bold text-[#00C805]">${math.formattedPercent}</span>
             </div>
-            <div class="text-[10px] text-gray-400 mt-1">${koth.realEth.toFixed(2)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(2)} ETH Raised</div>
+            <div class="text-[10px] text-gray-400 mt-1">${math.raisedEthFormatted} Raised</div>
           </div>
 
           <button onclick="event.stopPropagation(); openTokenDetail('${koth.id}')" class="px-4 py-2 bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-xs rounded-xl shadow-md transition transform active:scale-95 cursor-pointer">
@@ -2244,7 +2315,7 @@ function renderTokenGrid() {
   }
 
   container.innerHTML = filtered.map(t => {
-    const math = getCurveMath(t.realEth);
+    const math = getCurveMath(t);
     const isSelected = activeToken.id === t.id;
 
     return `
@@ -2283,11 +2354,11 @@ function renderTokenGrid() {
 
           <div class="flex items-center justify-between text-xs mb-2">
             <span class="text-gray-400">Uniswap v4 Progress:</span>
-            <span class="font-mono text-[#00C805] font-semibold">${math.progressPercent.toFixed(1)}%</span>
+            <span class="font-mono text-[#00C805] font-semibold">${math.formattedPercent}</span>
           </div>
 
           <div class="w-full bg-[#121721] h-1.5 rounded-full overflow-hidden">
-            <div class="progress-fill h-full" style="width: ${math.progressPercent}%"></div>
+            <div class="progress-fill h-full" style="width: ${math.visualBarWidth}%"></div>
           </div>
 
           <div class="mt-3 flex items-center justify-between text-[11px] text-gray-400 gap-2">
@@ -2307,7 +2378,7 @@ function renderTokenGrid() {
 }
 
 function renderTerminal() {
-  const math = getCurveMath(activeToken.realEth);
+  const math = getCurveMath(activeToken);
 
   document.getElementById("terminalTokenName").innerText = activeToken.name;
   document.getElementById("terminalTokenTicker").innerText = `$${activeToken.ticker}`;
@@ -2337,14 +2408,17 @@ function renderTerminal() {
   document.getElementById("terminalVolume").innerText = `$${activeToken.volume24hUsd.toLocaleString()}`;
 
   // Progress Bar for 2.0 ETH Target
-  document.getElementById("terminalProgressPercent").innerText = `${math.progressPercent.toFixed(1)}%`;
-  document.getElementById("terminalEthProgress").innerText = `${activeToken.realEth.toFixed(2)} / ${AMM_PARAMS.GRADUATION_ETH_TARGET.toFixed(2)} ETH`;
-  document.getElementById("terminalProgressBar").style.width = `${math.progressPercent}%`;
+  document.getElementById("terminalProgressPercent").innerText = math.formattedPercent;
+  document.getElementById("terminalEthProgress").innerText = `${math.raisedEthFormatted} Raised`;
+  document.getElementById("terminalProgressBar").style.width = `${math.visualBarWidth}%`;
 
-  const remainingEth = Math.max(0, AMM_PARAMS.GRADUATION_ETH_TARGET - activeToken.realEth);
   const remainingText = document.getElementById("terminalRemainingEth");
   if (remainingText) {
-    remainingText.innerText = `${remainingEth.toFixed(2)} ETH to Uniswap v4`;
+    if (math.isGraduated) {
+      remainingText.innerHTML = `<span class="text-[#00C805] font-bold">🎉 Graduated to Uniswap v4!</span>`;
+    } else {
+      remainingText.innerText = `${math.remainingEthFormatted} to Uniswap v4`;
+    }
   }
 
   const bitgetLink = document.getElementById("tokenBitgetSwapLink");
@@ -3625,9 +3699,16 @@ async function executeSwap() {
           );
           const curveData = await curveContract.curves(poolId);
           activeToken.realEth = Number(ethers.formatEther(curveData.realEthReserve));
+          if (curveData.isGraduated || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET) {
+            activeToken.graduated = true;
+          }
         } else {
           const freshReserveWei = await curveContract.realEthReserve();
           activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+          const freshIsGrad = await curveContract.isGraduated().catch(() => false);
+          if (freshIsGrad || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET) {
+            activeToken.graduated = true;
+          }
         }
       } catch (e) {
         activeToken.realEth = (Number(activeToken.realEth) || 0) + inputAmount;
@@ -3661,6 +3742,8 @@ async function executeSwap() {
       }
 
       renderTerminal();
+      renderTokenGrid();
+      renderKothBanner();
       drawChart();
 
       alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
@@ -3764,8 +3847,33 @@ async function executeSwap() {
 
       // Re-query curve on-chain reserve immediately
       try {
-        const freshReserveWei = await curveContract.realEthReserve();
-        activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+        if (isHookCurve) {
+          const poolKey = {
+            currency0: '0x0000000000000000000000000000000000000000',
+            currency1: activeToken.address,
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: V4_HOOK_CONTRACT_ADDRESS
+          };
+          const poolId = ethers.keccak256(
+            ethers.AbiCoder.defaultAbiCoder().encode(
+              ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+              [poolKey]
+            )
+          );
+          const curveData = await curveContract.curves(poolId);
+          activeToken.realEth = Number(ethers.formatEther(curveData.realEthReserve));
+          if (curveData.isGraduated || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET) {
+            activeToken.graduated = true;
+          }
+        } else {
+          const freshReserveWei = await curveContract.realEthReserve();
+          activeToken.realEth = Number(ethers.formatEther(freshReserveWei));
+          const freshIsGrad = await curveContract.isGraduated().catch(() => false);
+          if (freshIsGrad || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET) {
+            activeToken.graduated = true;
+          }
+        }
       } catch (e) {
         activeToken.realEth = Math.max(0, (Number(activeToken.realEth) || 0) - sellTrade.eth);
       }
@@ -3798,6 +3906,8 @@ async function executeSwap() {
       }
 
       renderTerminal();
+      renderTokenGrid();
+      renderKothBanner();
       drawChart();
 
       alert(`✅ Instant Sell Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);

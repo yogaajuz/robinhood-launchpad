@@ -112,7 +112,7 @@ async function handleTradeEvent(log, isBuy, broadcast) {
   // 2. Update real_eth and volume in tokens table
   if (tokenRows && tokenRows.length > 0) {
     let currentEth = parseFloat(tokenRows[0].real_eth) || 0;
-    let newEth = isBuy ? (currentEth + ethAmount) : Math.max(0.05, currentEth - ethAmount);
+    let newEth = isBuy ? (currentEth + ethAmount) : Math.max(0, currentEth - ethAmount);
     let newVolume = (parseFloat(tokenRows[0].volume_24h_usd) || 0) + (ethAmount * 4200);
 
     const isGraduated = newEth >= 2.0 ? 1 : 0;

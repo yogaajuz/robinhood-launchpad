@@ -459,6 +459,34 @@ app.post('/api/tokens/:id/trades', async (req, res) => {
        ON CONFLICT(tx_hash) DO NOTHING`,
       [id, txHash, trader, isBuy ? 1 : 0, ethAmount, tokenAmount]
     );
+
+    // Also sync token's on-chain bonding curve metrics in DB
+    const ethNum = parseFloat(ethAmount) || 0;
+    if (ethNum > 0) {
+      try {
+        if (isBuy) {
+          await query(
+            `UPDATE tokens 
+             SET real_eth = real_eth + ?,
+                 volume_24h_usd = volume_24h_usd + ?,
+                 is_graduated = CASE WHEN (real_eth + ?) >= 2.0 THEN 1 ELSE is_graduated END
+             WHERE LOWER(id) = LOWER(?) OR LOWER(curve_address) = LOWER(?)`,
+            [ethNum, ethNum * 4200, ethNum, id, id]
+          );
+        } else {
+          await query(
+            `UPDATE tokens 
+             SET real_eth = GREATEST(0, real_eth - ?),
+                 volume_24h_usd = volume_24h_usd + ?
+             WHERE LOWER(id) = LOWER(?) OR LOWER(curve_address) = LOWER(?)`,
+            [ethNum, ethNum * 4200, id, id]
+          );
+        }
+      } catch (errDbUpdate) {
+        console.warn("Could not update token stats on trade:", errDbUpdate.message);
+      }
+    }
+
     broadcast({
       type: 'NEW_TRADE',
       trade: {
