@@ -280,9 +280,89 @@ function renderTokenContractUnderLogoHtml(token, isTerminal = false) {
       <button type="button" onclick="copyContractAddress('${addr}', event, this)" class="text-gray-500 hover:text-[#00C805] transition cursor-pointer p-0.5" title="Copy Contract Address">
         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
       </button>
+      <button type="button" onclick="addTokenToWallet('${addr}', '${escapeHtml(token.ticker)}', 18, '${escapeHtml(token.icon || '')}')" class="text-gray-500 hover:text-cyan-400 transition cursor-pointer p-0.5" title="Add token & logo to Bitget / MetaMask Wallet">
+        💼+
+      </button>
     </div>
   `;
 }
+
+let lastCreatedToken = null;
+
+window.addTokenToWallet = async function(tokenAddress, tokenSymbol, tokenDecimals = 18, tokenIcon = "") {
+  try {
+    const provider = window.ethereum || (window.bitkeep && window.bitkeep.ethereum);
+    if (!provider) {
+      alert("No Web3 wallet detected! Please install Bitget Wallet or MetaMask, or open robinpump.world inside the Bitget Wallet App DApp Browser.");
+      return;
+    }
+
+    let cleanAddr = tokenAddress;
+    if (!cleanAddr || !cleanAddr.startsWith("0x")) {
+      alert("Token contract address not found on-chain.");
+      return;
+    }
+
+    // Convert relative or IPFS paths to public HTTPS URLs for wallet compatibility
+    let iconUrl = tokenIcon || "";
+    if (iconUrl.startsWith("/")) {
+      iconUrl = window.location.origin + iconUrl;
+    } else if (iconUrl.startsWith("ipfs://")) {
+      iconUrl = iconUrl.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/");
+    } else if (iconUrl.startsWith("data:")) {
+      // Wallets reject data: URIs in watchAsset parameters; leave blank
+      iconUrl = "";
+    }
+
+    const cleanSymbol = (tokenSymbol || "TOKEN").replace("$", "").slice(0, 11);
+
+    const options = {
+      address: cleanAddr,
+      symbol: cleanSymbol,
+      decimals: Number(tokenDecimals) || 18
+    };
+
+    if (iconUrl && iconUrl.startsWith("http")) {
+      options.image = iconUrl;
+    }
+
+    const wasAdded = await provider.request({
+      method: "wallet_watchAsset",
+      params: {
+        type: "ERC20",
+        options: options
+      }
+    });
+
+    if (wasAdded) {
+      alert(`✅ $${cleanSymbol} and its logo were added to your wallet!`);
+    }
+  } catch (err) {
+    console.warn("wallet_watchAsset error:", err);
+    if (err && err.code !== 4001) {
+      alert(`Could not add token to wallet:\n${err.message || err}`);
+    }
+  }
+};
+
+window.addActiveTokenToWallet = async function() {
+  if (!activeToken || !activeToken.address) {
+    alert("Token contract not ready or not on-chain.");
+    return;
+  }
+  await addTokenToWallet(activeToken.address, activeToken.ticker, 18, activeToken.icon);
+};
+
+window.addCreatedTokenToWallet = async function() {
+  if (successModalInterval) clearInterval(successModalInterval);
+  if (successModalTimer) clearTimeout(successModalTimer);
+  const token = lastCreatedToken || activeToken;
+  if (!token || !token.address) {
+    alert("Token contract not ready.");
+    return;
+  }
+  await addTokenToWallet(token.address, token.ticker, 18, token.icon);
+};
 
 // --- IPFS Decentralized Storage Configuration ---
 // Free Pinata Signup: https://app.pinata.cloud/developers/api-keys
@@ -1800,6 +1880,9 @@ function renderUserProfile() {
 
                 <!-- Right: Quick Actions -->
                 <div class="flex items-center gap-2 shrink-0 self-end lg:self-center flex-wrap">
+                  <button onclick="addTokenToWallet('${explorerAddr}', '${escapeHtml(t.ticker)}', 18, '${escapeHtml(t.icon || '')}')" class="px-2.5 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1 cursor-pointer" title="Add coin with logo to Bitget / MetaMask Wallet">
+                    <span>💼+</span> <span>Wallet</span>
+                  </button>
                   <button onclick="copyTokenShareLinkFor('${t.id}', '${escapeHtml(t.ticker)}')" class="px-3 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-gray-300 hover:text-white border border-gray-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer" title="Copy shareable link">
                     <span>📋</span> <span>Share</span>
                   </button>
@@ -1916,7 +1999,11 @@ function renderUserProfile() {
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="addTokenToWallet('${t.address || t.id}', '${escapeHtml(t.ticker)}', 18, '${escapeHtml(t.icon || '')}')" class="px-2.5 py-2 rounded-xl bg-[#121721] hover:bg-[#1a2233] text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1 cursor-pointer" title="Add coin with logo to Bitget / MetaMask Wallet">
+                      <span>💼+</span> <span>Wallet</span>
+                    </button>
+
                     <button onclick="claimRewards('${t.curveAddress || ''}')" ${reward <= 0 ? 'disabled' : ''} 
                       class="px-3.5 py-2 rounded-xl font-bold text-xs transition transform active:scale-95 cursor-pointer shadow-md ${
                         reward > 0 
@@ -3638,12 +3725,14 @@ function showTokenCreatedSuccessModal(token, txHash, initialTokensBought = 0) {
     }
   }
 
+  lastCreatedToken = token;
+
   // Pre-switch to the token terminal in the background so it's fully ready
   openTokenDetail(token.id);
 
   modal.classList.remove("hidden");
 
-  let remaining = initialTokensBought > 0 ? 3 : 2;
+  let remaining = 4;
   if (countdownEl) countdownEl.innerText = remaining;
 
   if (successModalInterval) clearInterval(successModalInterval);

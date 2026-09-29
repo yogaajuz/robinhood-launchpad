@@ -167,6 +167,9 @@
         </button>
 
         <div class="flex items-center gap-2 text-xs">
+          <button onclick="addActiveTokenToWallet()" class="flex items-center gap-1.5 px-3 py-1.5 bg-[#181f2c] hover:bg-[#222b3d] text-cyan-400 hover:text-cyan-300 rounded-xl border border-cyan-500/30 font-mono transition cursor-pointer" title="Add token and logo directly to Bitget Wallet / MetaMask">
+            <span>💼+</span> <span>Add to Wallet</span>
+          </button>
           <button onclick="copyTokenShareLink()" class="flex items-center gap-1.5 px-3 py-1.5 bg-[#181f2c] hover:bg-[#222b3d] text-gray-300 hover:text-white rounded-xl border border-gray-700 font-mono transition cursor-pointer">
             <span>🔗</span> <span>Share</span>
           </button>
@@ -746,7 +749,10 @@
 
       <!-- Actions -->
       <div class="flex flex-col gap-2">
-        <button id="successModalGoBtn" onclick="dismissSuccessModal()" class="w-full py-3 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2">
+        <button id="successModalAddToWalletBtn" onclick="addCreatedTokenToWallet()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-950/60 to-[#121721] hover:from-cyan-900/60 hover:to-[#181f2c] border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 hover:text-cyan-200 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-md shadow-cyan-500/10">
+          <span>💼+</span> <span>Add Coin & Logo to Bitget / MetaMask</span>
+        </button>
+        <button id="successModalGoBtn" onclick="dismissSuccessModal()" class="w-full py-2.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-2">
           <span>Go to Token Page Now</span> <span>→</span>
         </button>
         <a id="successModalExplorerLink" href="#" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-400 hover:text-white transition flex items-center justify-center gap-1 py-1">
