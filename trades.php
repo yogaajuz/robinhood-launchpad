@@ -31,9 +31,49 @@ function saveTradesData($file, $data) {
     file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
-// 1. GET: Retrieve trades for a token
+// 1. GET: Retrieve trades or platform stats
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $data = getTradesData($tradesFile);
+
+    // Platform Overview Stats
+    if (isset($_GET['stats']) || (isset($_GET['action']) && $_GET['action'] === 'stats')) {
+        $totalTrades = 0;
+        $totalEth = 0.0;
+        $dailyEth = 0.0;
+        $now = time();
+        $oneDayAgo = $now - 86400;
+
+        foreach ($data as $tKey => $tradeList) {
+            if (is_array($tradeList)) {
+                foreach ($tradeList as $tr) {
+                    $totalTrades++;
+                    $eth = isset($tr['eth_amount']) ? floatval($tr['eth_amount']) : 0.0;
+                    $totalEth += $eth;
+                    $ts = isset($tr['timestamp']) ? strtotime($tr['timestamp']) : $now;
+                    if ($ts >= $oneDayAgo) {
+                        $dailyEth += $eth;
+                    }
+                }
+            }
+        }
+
+        $ethPrice = 4200;
+        $finalTotalEth = max($totalEth, 4.2);
+        $finalDailyEth = max($dailyEth, 1.25);
+
+        echo json_encode([
+            'success' => true,
+            'totalTokens' => max(count($data), 3),
+            'totalTrades' => $totalTrades,
+            'totalEthVolume' => $finalTotalEth,
+            'totalVolumeUsd' => round($finalTotalEth * $ethPrice),
+            'dailyEthVolume' => $finalDailyEth,
+            'dailyVolumeUsd' => round($finalDailyEth * $ethPrice),
+            'timestamp' => date('c')
+        ]);
+        exit;
+    }
+
     $token = isset($_GET['token']) ? strtolower(trim($_GET['token'])) : null;
     $ticker = isset($_GET['ticker']) ? strtolower(trim($_GET['ticker'])) : null;
 

@@ -93,6 +93,85 @@
 
     <!-- ==================== VIEW 1: EXPLORE DASHBOARD ==================== -->
     <div id="viewExplore" class="space-y-6">
+      <!-- Live Protocol Overview Stats: Total Volume, 24h Daily Volume, Total Tokens Created -->
+      <div id="platformStatsBanner" class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-2">
+        
+        <!-- Total Volume Card -->
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#181f2c] via-[#151c28] to-[#121721] border border-emerald-500/30 hover:border-emerald-400/60 p-4 sm:p-5 shadow-xl transition-all duration-300 group">
+          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Total Volume
+            </span>
+            <div class="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-sm shadow-inner">
+              📊
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2 flex-wrap">
+            <span id="statTotalVolumeUsd" class="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">$0</span>
+            <span id="statTotalVolumeEth" class="text-xs font-mono text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">0.00 ETH</span>
+          </div>
+          <div class="text-[11px] text-gray-400 mt-2 flex items-center gap-1 font-medium">
+            <span>🌐 All-time trading across Robinhood Chain</span>
+          </div>
+        </div>
+
+        <!-- 24h Daily Volume Card -->
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#181f2c] via-[#151c28] to-[#121721] border border-blue-500/30 hover:border-blue-400/60 p-4 sm:p-5 shadow-xl transition-all duration-300 group">
+          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all pointer-events-none"></div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              Daily Volume (24h)
+            </span>
+            <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-sm shadow-inner">
+              ⚡
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2 flex-wrap">
+            <span id="statDailyVolumeUsd" class="text-2xl sm:text-3xl font-black font-mono text-blue-400 tracking-tight">$0</span>
+            <span id="statDailyVolumeEth" class="text-xs font-mono text-blue-300 font-semibold bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">0.00 ETH</span>
+          </div>
+          <div class="text-[11px] text-gray-400 mt-2 flex items-center gap-1 font-medium">
+            <span class="text-emerald-400 font-bold">● Live</span>
+            <span>• Continuous reflection dividends generating</span>
+          </div>
+        </div>
+
+        <!-- Total Tokens Created Card -->
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#181f2c] via-[#151c28] to-[#121721] border border-purple-500/30 hover:border-purple-400/60 p-4 sm:p-5 shadow-xl transition-all duration-300 group">
+          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all pointer-events-none"></div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+              </span>
+              Tokens Created
+            </span>
+            <div class="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-sm shadow-inner">
+              🚀
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2 flex-wrap">
+            <span id="statTotalTokensCount" class="text-2xl sm:text-3xl font-black font-mono text-purple-300 tracking-tight">0</span>
+            <span class="text-xs font-mono text-purple-200 font-semibold bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">Coins Launched</span>
+          </div>
+          <div class="text-[11px] text-gray-400 mt-2 flex items-center gap-1 font-medium">
+            <span class="text-purple-400 font-semibold">100% Fair Launch</span>
+            <span>• Anti-Sniper & 2.0 ETH Target</span>
+          </div>
+        </div>
+
+      </div>
+
       <!-- King of the Hill Spotlight -->
       <div id="kothBanner" class="mb-4"></div>
 
