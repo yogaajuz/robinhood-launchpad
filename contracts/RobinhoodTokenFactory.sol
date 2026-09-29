@@ -140,7 +140,7 @@ contract RobinhoodTokenFactory {
                     tickSpacing: 60,
                     hooks: address(0)
                 }),
-                792281625142643375935439503360 // ~1:100M-400M initial price range
+                3169126500570573503741758013440000 // 40,000 * 2^96 = 1.6 Billion tokens / ETH (Exact bonding curve initial price)
             ) returns (int24 tick) {
                 bytes32 poolId = keccak256(abi.encode(
                     IPoolManager.PoolKey({

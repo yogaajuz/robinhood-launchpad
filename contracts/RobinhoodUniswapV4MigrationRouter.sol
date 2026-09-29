@@ -95,7 +95,7 @@ contract RobinhoodUniswapV4MigrationRouter is IUnlockCallback {
         // Calculate initial sqrtPriceX96: sqrt(tokens / eth) * 2^96
         // For 200M tokens : ~2 ETH, price = 100,000,000 tokens/ETH
         // sqrt(100,000,000) = 10,000. 10000 * 2^96:
-        uint160 initialSqrtPriceX96 = 792281625142643375935439503360; // Approximate balanced sqrtPrice
+        uint160 initialSqrtPriceX96 = 792281625142643375935439503360000; // Exact 100M tokens/ETH graduation price
 
         if (poolManager != address(0)) {
             // Initialize pool in Uniswap v4 Singleton

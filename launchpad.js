@@ -2418,8 +2418,8 @@ async function initializeUniswapPoolForActiveToken() {
     hooks: '0x0000000000000000000000000000000000000000'
   };
 
-  // Initial sqrtPriceX96 for canonical pool (~100M - 400M tokens per ETH)
-  const sqrtPriceX96 = 792281625142643375935439503360n;
+  // Initial sqrtPriceX96 for canonical pool (40,000 * 2^96 = 1.6 Billion tokens / ETH, exact bonding curve initial floor)
+  const sqrtPriceX96 = 3169126500570573503741758013440000n;
 
   const poolManagerAbi = [
     "function initialize(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint160 sqrtPriceX96) external returns (int24 tick)"
@@ -3550,30 +3550,52 @@ async function executeSwap() {
       alert(`✅ Instant Buy Confirmed on Robinhood Chain Mainnet!\n\nTx Hash: ${receipt.hash}\nExplorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}`);
     } else {
       // Selling tokens
-      const userTokenBal = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
-      if (inputAmount > userTokenBal) {
-        alert(`Insufficient $${activeToken.ticker} balance in your wallet!\nYour balance: ${userTokenBal.toLocaleString()} $${activeToken.ticker}\nAttempted sell: ${inputAmount.toLocaleString()} $${activeToken.ticker}`);
+      const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserSigner);
+      let onChainBal = 0n;
+      try {
+        onChainBal = await tokenContract.balanceOf(userWallet.address);
+      } catch (balErr) {
+        console.warn("Could not query balance:", balErr);
+      }
+      const onChainTokens = parseFloat(ethers.formatEther(onChainBal));
+      userWallet.holdings[activeToken.id] = onChainTokens;
+      userWallet.holdings[activeToken.address] = onChainTokens;
+
+      if (onChainBal === 0n || onChainTokens <= 0) {
+        alert(`You do not have any $${activeToken.ticker} tokens in your connected wallet.`);
         return;
       }
 
-      const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserSigner);
-      const onChainBal = await tokenContract.balanceOf(userWallet.address);
+      if (inputAmount > onChainTokens && (inputAmount - onChainTokens) > 0.0001) {
+        alert(`Insufficient $${activeToken.ticker} balance in your wallet!\nYour balance: ${onChainTokens.toLocaleString()} $${activeToken.ticker}\nAttempted sell: ${inputAmount.toLocaleString()} $${activeToken.ticker}`);
+        return;
+      }
 
       let tokensWei;
-      if (inputAmount >= userTokenBal * 0.9999) {
-        // If selling all or virtually all holding, use exact on-chain balance to prevent rounding dust
+      if (inputAmount >= onChainTokens * 0.999 || inputAmount >= (userTokenBal || 0) * 0.999) {
+        // Full sell: sell entire on-chain balance to prevent rounding dust
         tokensWei = onChainBal;
       } else {
-        tokensWei = ethers.parseEther(inputAmount.toString());
+        try {
+          tokensWei = ethers.parseEther(inputAmount.toFixed(18).replace(/\.?0+$/, ""));
+        } catch (e) {
+          tokensWei = ethers.parseEther(inputAmount.toString());
+        }
       }
 
       if (tokensWei === 0n || tokensWei > onChainBal) {
         tokensWei = onChainBal;
       }
 
-      if (tokensWei === 0n) {
-        alert(`You do not have any $${activeToken.ticker} tokens to sell.`);
-        return;
+      // Cap sellable amount against curve token reserve to prevent "Cannot sell more than bought" revert
+      if (!isHookCurve) {
+        try {
+          const curveReserve = await curveContract.tokenReserve();
+          const maxSellable = (800000000n * 10n**18n) - curveReserve;
+          if (tokensWei > maxSellable && maxSellable > 0n) {
+            tokensWei = maxSellable;
+          }
+        } catch (e) {}
       }
 
       const spenderAddress = isHookCurve ? V4_HOOK_CONTRACT_ADDRESS : activeToken.curveAddress;
@@ -3581,9 +3603,8 @@ async function executeSwap() {
       const allowance = await tokenContract.allowance(userWallet.address, spenderAddress);
 
       if (allowance < tokensWei) {
-        if (actionBtn) actionBtn.innerText = "Approve in MetaMask...";
-        // Exact approval for safety (avoids Web3 wallet drainer/phishing heuristics)
-        const approveTx = await tokenContract.approve(spenderAddress, tokensWei);
+        if (actionBtn) actionBtn.innerText = "Approve in Wallet (Bitget / MetaMask)...";
+        const approveTx = await tokenContract.approve(spenderAddress, ethers.MaxUint256);
         await approveTx.wait();
       }
 
@@ -3599,11 +3620,18 @@ async function executeSwap() {
         };
         tx = await curveContract.sellTokens(poolKey, tokensWei, 0n);
       } else {
-        tx = await curveContract.sellTokens(tokensWei, 0);
+        tx = await curveContract.sellTokens(tokensWei, 0n);
       }
 
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
+
+      // Update wallet balance immediately
+      try {
+        const updatedBal = await tokenContract.balanceOf(userWallet.address);
+        userWallet.holdings[activeToken.id] = parseFloat(ethers.formatEther(updatedBal));
+        userWallet.holdings[activeToken.address] = userWallet.holdings[activeToken.id];
+      } catch (e) {}
 
       const tradeTs = Date.now();
       const sellTrade = {
@@ -3892,6 +3920,10 @@ function updateTaxSummary() {
     Total Trade Fee: <b class="text-white font-mono">${(1.0 + creatorTax + holderTax).toFixed(1)}%</b>
     <span class="text-gray-400">(1% Protocol + ${creatorTax.toFixed(1)}% Dev + ${holderTax.toFixed(1)}% Holders)</span>
   `;
+
+  if (typeof window.updateDevBuyEstimate === 'function') {
+    window.updateDevBuyEstimate();
+  }
 }
 
 // --- Elegant Token Creation Success Modal ---
@@ -4072,17 +4104,21 @@ window.updateDevBuyEstimate = function() {
     return;
   }
 
-  // Curve constant product estimate:
-  // VIRTUAL_ETH = 0.05, TOKENS_FOR_CURVE = 800,000,000
-  // Net ETH after ~2% total protocol/dev fee
-  const netEth = ethVal * 0.98;
-  const currentEth = 0.05;
-  const newEth = currentEth + netEth;
-  const k = 0.05 * 800000000;
-  const newTokenReserve = k / newEth;
-  const tokensOut = Math.max(0, 800000000 - newTokenReserve);
+  // Curve constant product estimate exactly matching RobinhoodBondingCurve.sol:
+  // VIRTUAL_ETH = 0.5 ETH, TOKENS_FOR_CURVE = 800,000,000
+  const creatorTax = parseFloat(document.getElementById("creatorTaxInput")?.value) || 0;
+  const holderTax = parseFloat(document.getElementById("holderTaxInput")?.value) || 0;
+  const totalTaxPct = (AMM_PARAMS.PROTOCOL_FEE_PERCENT * 100) + creatorTax + holderTax;
+  const netEth = ethVal * (1 - (totalTaxPct / 100));
 
-  amountEl.innerText = `~${Math.round(tokensOut).toLocaleString()} tokens`;
+  const currentEth = AMM_PARAMS.VIRTUAL_ETH;
+  const newEth = currentEth + netEth;
+  const k = AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.TOKENS_FOR_CURVE;
+  const newTokenReserve = k / newEth;
+  const tokensOut = Math.max(0, AMM_PARAMS.TOKENS_FOR_CURVE - newTokenReserve);
+
+  const ticker = document.getElementById("newTokenTicker")?.value.trim().toUpperCase().replace("$", "") || "tokens";
+  amountEl.innerText = `~${Math.round(tokensOut).toLocaleString()} $${ticker}`;
   box.classList.remove("hidden");
 };
 
@@ -4418,7 +4454,7 @@ async function handleCreateTokenSubmit(e) {
           hooks: '0x0000000000000000000000000000000000000000'
         };
 
-        const sqrtPriceX96 = 792281625142643375935439503360n; // Canonical initial price range
+        const sqrtPriceX96 = 3169126500570573503741758013440000n; // 40,000 * 2^96 = 1.6 Billion tokens / ETH (Exact bonding curve initial price)
         const poolManagerAbi = [
           "function initialize(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint160 sqrtPriceX96) external returns (int24 tick)"
         ];
@@ -4477,6 +4513,7 @@ async function handleCreateTokenSubmit(e) {
     const shortCreator = userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4);
     const initialEthReserve = (tokensBoughtAmount > 0 && devBuyEth >= 0.0001) ? devBuyEth : 0.0;
 
+    const currentPriceEth = (AMM_PARAMS.VIRTUAL_ETH + initialEthReserve) / AMM_PARAMS.TOKENS_FOR_CURVE;
     const newToken = {
       id: deployedTokenAddress || `token_${Date.now()}`,
       address: deployedTokenAddress,
@@ -4491,8 +4528,8 @@ async function handleCreateTokenSubmit(e) {
       createdAgo: "Just now",
       realEth: initialEthReserve,
       tokensLeft: AMM_PARAMS.TOKENS_FOR_CURVE - tokensBoughtAmount,
-      priceEth: 0.00000001,
-      marketCapUsd: Math.round((initialEthReserve + 0.05) * ethUsdPrice * 8),
+      priceEth: currentPriceEth,
+      marketCapUsd: Math.round(((AMM_PARAMS.VIRTUAL_ETH + initialEthReserve) * (AMM_PARAMS.TOTAL_SUPPLY / AMM_PARAMS.TOKENS_FOR_CURVE)) * ethUsdPrice),
       change24h: 0.0,
       volume24hUsd: initialEthReserve * ethUsdPrice,
       graduated: false,
@@ -4505,7 +4542,7 @@ async function handleCreateTokenSubmit(e) {
       telegram: formattedTelegram,
       youtube: formattedYoutube,
       discord: formattedDiscord,
-      history: [0.05, initialEthReserve > 0 ? initialEthReserve : 0.05]
+      history: [AMM_PARAMS.VIRTUAL_ETH, (AMM_PARAMS.VIRTUAL_ETH + initialEthReserve)]
     };
 
     // Save to backend database
@@ -4648,7 +4685,7 @@ function setPresetAmount(amount) {
 
 function setPresetPercent(percent) {
   if (swapMode === "sell") {
-    const holding = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+    const holding = activeToken ? (userWallet.holdings[activeToken.id] || userWallet.holdings[activeToken.address] || 0) : 0;
     if (percent === 100) {
       document.getElementById("swapInputAmount").value = holding > 0 ? holding : "0";
     } else {
@@ -4668,7 +4705,7 @@ function setMaxAmount() {
     const maxEth = Math.max(0, userWallet.balanceEth - 0.001);
     document.getElementById("swapInputAmount").value = maxEth > 0 ? maxEth.toFixed(4) : "0";
   } else {
-    const maxTokens = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
+    const maxTokens = activeToken ? (userWallet.holdings[activeToken.id] || userWallet.holdings[activeToken.address] || 0) : 0;
     document.getElementById("swapInputAmount").value = maxTokens > 0 ? maxTokens : "0";
   }
   updateSwapEstimate();

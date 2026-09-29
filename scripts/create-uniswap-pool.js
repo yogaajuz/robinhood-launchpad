@@ -71,8 +71,8 @@ async function main() {
     hooks: '0x0000000000000000000000000000000000000000' // Canonical pool
   };
 
-  // sqrtPriceX96 for ~100M - 400M tokens per ETH
-  const sqrtPriceX96 = 792281625142643375935439503360n;
+  // sqrtPriceX96 for 1.6B tokens / ETH (40,000 * 2^96)
+  const sqrtPriceX96 = 3169126500570573503741758013440000n;
 
   // Compute PoolId
   const encodedKey = encodeAbiParameters(
