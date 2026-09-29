@@ -239,6 +239,7 @@ app.post('/api/tokens', async (req, res) => {
       creatorTaxBps,
       holderTaxBps,
       initialEth = 0,
+      uniswapV4Pool = null,
       websiteUrl = '',
       twitterUrl = '',
       telegramUrl = '',
@@ -249,11 +250,12 @@ app.post('/api/tokens', async (req, res) => {
       return res.status(400).json({ error: 'Missing required token fields' });
     }
     await query(
-      `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps, volume_24h_usd, website_url, twitter_url, telegram_url, youtube_url, discord_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO tokens (id, curve_address, name, symbol, description, logo_url, creator, real_eth, creator_tax_bps, holder_tax_bps, volume_24h_usd, uniswap_v4_pool, website_url, twitter_url, telegram_url, youtube_url, discord_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET 
          curve_address = excluded.curve_address, 
          real_eth = excluded.real_eth,
+         uniswap_v4_pool = COALESCE(excluded.uniswap_v4_pool, tokens.uniswap_v4_pool),
          website_url = excluded.website_url,
          twitter_url = excluded.twitter_url,
          telegram_url = excluded.telegram_url,
@@ -271,6 +273,7 @@ app.post('/api/tokens', async (req, res) => {
         parseInt(creatorTaxBps) || 0,
         parseInt(holderTaxBps) || 0,
         (parseFloat(initialEth) || 0) * 4200,
+        uniswapV4Pool || null,
         websiteUrl || '',
         twitterUrl || '',
         telegramUrl || '',

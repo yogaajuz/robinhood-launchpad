@@ -89,6 +89,7 @@ async function initDatabase() {
     // Auto-migrate social columns if table already exists in PostgreSQL
     try {
       await pgPool.query(`
+        ALTER TABLE tokens ADD COLUMN IF NOT EXISTS uniswap_v4_pool VARCHAR(66);
         ALTER TABLE tokens ADD COLUMN IF NOT EXISTS website_url VARCHAR(255);
         ALTER TABLE tokens ADD COLUMN IF NOT EXISTS twitter_url VARCHAR(255);
         ALTER TABLE tokens ADD COLUMN IF NOT EXISTS telegram_url VARCHAR(255);
@@ -127,7 +128,7 @@ async function initDatabase() {
     `);
 
     // Auto-migrate for SQLite
-    const cols = ['website_url', 'twitter_url', 'telegram_url', 'youtube_url', 'discord_url'];
+    const cols = ['website_url', 'twitter_url', 'telegram_url', 'youtube_url', 'discord_url', 'uniswap_v4_pool'];
     for (const c of cols) {
       try {
         await query(`ALTER TABLE tokens ADD COLUMN ${c} TEXT`);
