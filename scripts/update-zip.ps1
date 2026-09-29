@@ -12,6 +12,8 @@ $files = @(
     @{ Local = "frontend\index.html"; Entry = "frontend/index.html" },
     @{ Local = "frontend\launchpad.js"; Entry = "frontend/launchpad.js" },
     @{ Local = "frontend\app.js"; Entry = "frontend/app.js" },
+    @{ Local = "deploy.html"; Entry = "deploy.html" },
+    @{ Local = "frontend\deploy.html"; Entry = "frontend/deploy.html" },
     @{ Local = "backend\server.js"; Entry = "backend/server.js" }
 )
 

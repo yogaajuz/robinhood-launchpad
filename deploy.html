@@ -104,6 +104,39 @@
       </button>
     </div>
 
+    <!-- Dedicated Section: Initialize Canonical Uniswap v4 Pool for Any Token -->
+    <div class="mt-6 pt-5 border-t border-gray-800">
+      <div class="text-sm font-bold text-pink-400 flex items-center gap-2 mb-1">
+        <span>🦄</span> Initialize Canonical Uniswap v4 Pool
+      </div>
+      <p class="text-xs text-gray-400 mb-3">
+        Initialize an on-chain Uniswap v4 pool for your token so that Bitget Swap, GeckoTerminal, and DEX aggregators can immediately discover and quote it!
+      </p>
+
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-300 mb-1">Target Token Address</label>
+          <input id="initTokenAddressInput" value="0xaB00706959E9e958b74E818319a4FB4dB96e61c7" placeholder="0x..." class="w-full bg-[#181f2c] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-pink-500">
+        </div>
+
+        <div class="flex gap-2 flex-wrap">
+          <button type="button" onclick="selectTokenForInit('0xaB00706959E9e958b74E818319a4FB4dB96e61c7')" class="px-2.5 py-1 rounded-lg bg-[#181f2c] hover:bg-[#222b3d] text-xs font-mono text-cyan-400 border border-gray-700 transition cursor-pointer">
+            Select $SAMPI
+          </button>
+          <button type="button" onclick="selectTokenForInit('0xa2cf005ab6e824006e0B853B438a197695E78410')" class="px-2.5 py-1 rounded-lg bg-[#181f2c] hover:bg-[#222b3d] text-xs font-mono text-cyan-400 border border-gray-700 transition cursor-pointer">
+            Select $RCAT
+          </button>
+          <button type="button" onclick="selectTokenForInit('0x60F5E4F14aCa10921626201ECA1f2EDeaF9D16C0')" class="px-2.5 py-1 rounded-lg bg-[#181f2c] hover:bg-[#222b3d] text-xs font-mono text-cyan-400 border border-gray-700 transition cursor-pointer">
+            Select $SCAT
+          </button>
+        </div>
+      </div>
+
+      <button id="initV4PoolActionBtn" onclick="executeInitV4PoolFromDeploy()" disabled class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:opacity-95 text-white font-extrabold text-sm transition shadow-lg shadow-pink-500/20 flex items-center justify-center gap-2 cursor-pointer">
+        <span>✨ Initialize Uniswap v4 Pool (1 Click in Wallet)</span>
+      </button>
+    </div>
+
     <!-- Progress / Status Log -->
     <div id="statusSection" class="hidden mt-6 pt-5 border-t border-gray-800">
       <div class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Deployment Status</div>
@@ -210,11 +243,105 @@
         hookBtn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-extrabold text-sm transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer";
       }
       const btn = document.getElementById("deployBtn");
-      btn.disabled = false;
-      btn.className = "w-full py-2.5 rounded-2xl bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-2";
+      if (btn) {
+        btn.disabled = false;
+        btn.className = "w-full py-2.5 rounded-2xl bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-2";
+      }
+      const initPoolBtn = document.getElementById("initV4PoolActionBtn");
+      if (initPoolBtn) {
+        initPoolBtn.disabled = false;
+      }
       document.getElementById("switchNetworkBtn").classList.add("hidden");
       document.getElementById("connectWalletBtn").innerText = "Connected";
       document.getElementById("connectWalletBtn").classList.remove("hidden");
+    }
+
+    function selectTokenForInit(addr) {
+      document.getElementById("initTokenAddressInput").value = addr;
+    }
+
+    async function executeInitV4PoolFromDeploy() {
+      if (!signer) {
+        alert("Please connect your wallet first!");
+        await connectWallet();
+        if (!signer) return;
+      }
+
+      const tokenAddr = document.getElementById("initTokenAddressInput").value.trim();
+      if (!tokenAddr || !tokenAddr.startsWith("0x")) {
+        alert("Please enter a valid token contract address!");
+        return;
+      }
+
+      const poolManager = document.getElementById("poolManagerInput").value.trim() || '0x8366a39cc670b4001a1121b8f6a443a643e40951';
+      const poolKey = {
+        currency0: '0x0000000000000000000000000000000000000000',
+        currency1: tokenAddr,
+        fee: 3000,
+        tickSpacing: 60,
+        hooks: '0x0000000000000000000000000000000000000000'
+      };
+      const sqrtPriceX96 = 792281625142643375935439503360n;
+
+      const btn = document.getElementById("initV4PoolActionBtn");
+      btn.disabled = true;
+      btn.innerText = "⏳ Confirm in your wallet...";
+
+      document.getElementById("statusSection").classList.remove("hidden");
+      addLog(`🦄 Initializing canonical Uniswap v4 pool for ${tokenAddr}...`, "text-pink-400 font-bold");
+      addLog(`PoolManager: ${poolManager}`);
+
+      const poolManagerAbi = [
+        "function initialize(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint160 sqrtPriceX96) external returns (int24 tick)"
+      ];
+
+      try {
+        const pm = new ethers.Contract(poolManager, poolManagerAbi, signer);
+        const tx = await pm.initialize(poolKey, sqrtPriceX96);
+        addLog(`Tx Submitted: ${tx.hash}`, "text-gray-400");
+        addLog("Waiting for block confirmation on Robinhood Chain...");
+        const receipt = await tx.wait();
+
+        const poolId = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+            [poolKey]
+          )
+        );
+
+        addLog(`🎉 Uniswap v4 Pool Initialized Successfully!`, "text-[#00C805] font-bold");
+        addLog(`Pool ID: ${poolId}`, "text-cyan-300 font-bold");
+        addLog(`Tx Hash: ${receipt.hash}`, "text-gray-300");
+
+        try {
+          await fetch(`/api/tokens/${tokenAddr}/uniswap-pool`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ poolId, txHash: receipt.hash })
+          });
+          addLog("✅ Pool ID saved to launchpad database!", "text-blue-400");
+        } catch (e) {}
+
+        btn.innerText = "✅ Pool Initialized Successfully!";
+        btn.className = "w-full py-3.5 rounded-2xl bg-gray-800 text-gray-400 font-bold text-sm";
+      } catch (err) {
+        console.error(err);
+        if (err.message && (err.message.includes("revert") || err.message.includes("PoolAlreadyInitialized") || err.code === "CALL_EXCEPTION")) {
+          const poolId = ethers.keccak256(
+            ethers.AbiCoder.defaultAbiCoder().encode(
+              ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+              [poolKey]
+            )
+          );
+          addLog(`ℹ️ Pool is already initialized in Uniswap v4! Pool ID: ${poolId}`, "text-yellow-400 font-bold");
+          btn.innerText = "✅ Pool Already Active on Uniswap v4";
+          btn.className = "w-full py-3.5 rounded-2xl bg-gray-800 text-yellow-400 font-bold text-sm";
+        } else {
+          addLog(`❌ Pool initialization failed: ${err.reason || err.message || err}`, "text-red-400");
+          btn.disabled = false;
+          btn.innerText = "✨ Retry Initializing Pool";
+        }
+      }
     }
 
     function addLog(msg, colorClass = "text-gray-300") {
