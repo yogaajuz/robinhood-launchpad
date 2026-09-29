@@ -1,0 +1,20 @@
+{
+  "contractName": "BeforeSwapDeltaLibrary",
+  "sourceFile": "RobinhoodBondingCurveHook.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ZERO_DELTA",
+      "outputs": [
+        {
+          "internalType": "BeforeSwapDelta",
+          "name": "",
+          "type": "int256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "6084610033600b8282823980515f1a607314602757634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe73000000000000000000000000000000000000000030146080604052600436106032575f3560e01c806391cb4669146036575b5f80fd5b603c5f81565b60405190815260200160405180910390f3fea2646970667358221220a078ee7fbafe9e2e26a1ba9ad819ce139f2c3f2d1f4ea11bf7a21247a0f2169864736f6c63430008140033"
+}

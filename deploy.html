@@ -93,10 +93,16 @@
       </div>
     </div>
 
-    <!-- Action Button -->
-    <button id="deployBtn" onclick="deployContracts()" disabled class="w-full py-3.5 rounded-2xl bg-gray-800 text-gray-500 font-bold text-sm transition flex items-center justify-center gap-2 cursor-not-allowed">
-      <span>🚀 Deploy Contracts to Robinhood Mainnet</span>
-    </button>
+    <!-- Action Buttons -->
+    <div class="space-y-3">
+      <button id="deployHookBtn" onclick="deployV4HookContract()" disabled class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-extrabold text-sm transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer">
+        <span>🦄 Deploy Uniswap v4 Hook (Day 0 Bitget Swap Trading)</span>
+      </button>
+
+      <button id="deployBtn" onclick="deployContracts()" disabled class="w-full py-2.5 rounded-2xl bg-gray-800 text-gray-500 font-bold text-xs transition flex items-center justify-center gap-2 cursor-not-allowed">
+        <span>🚀 Deploy Standard Factory & Router</span>
+      </button>
+    </div>
 
     <!-- Progress / Status Log -->
     <div id="statusSection" class="hidden mt-6 pt-5 border-t border-gray-800">
@@ -110,11 +116,15 @@
         <span>🎉</span> Contracts Deployed Successfully!
       </div>
       <div class="space-y-2 text-xs font-mono">
-        <div>
+        <div id="hookResultRow" class="hidden">
+          <span class="text-cyan-400 font-bold">Uniswap v4 Hook:</span>
+          <a id="hookLink" target="_blank" class="text-cyan-300 hover:underline block truncate font-bold"></a>
+        </div>
+        <div id="routerResultRow" class="hidden">
           <span class="text-gray-400">v4 Router:</span>
           <a id="routerLink" target="_blank" class="text-white hover:underline block truncate font-bold"></a>
         </div>
-        <div>
+        <div id="factoryResultRow" class="hidden">
           <span class="text-gray-400">Token Factory:</span>
           <a id="factoryLink" target="_blank" class="text-[#00C805] hover:underline block truncate font-bold"></a>
         </div>
@@ -194,9 +204,14 @@
     }
 
     function enableDeploy() {
+      const hookBtn = document.getElementById("deployHookBtn");
+      if (hookBtn) {
+        hookBtn.disabled = false;
+        hookBtn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-[#00C805] to-emerald-400 hover:opacity-95 text-black font-extrabold text-sm transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer";
+      }
       const btn = document.getElementById("deployBtn");
       btn.disabled = false;
-      btn.className = "w-full py-3.5 rounded-2xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm transition shadow-lg shadow-[#00C805]/20 cursor-pointer flex items-center justify-center gap-2";
+      btn.className = "w-full py-2.5 rounded-2xl bg-[#181f2c] hover:bg-[#222b3d] border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-2";
       document.getElementById("switchNetworkBtn").classList.add("hidden");
       document.getElementById("connectWalletBtn").innerText = "Connected";
       document.getElementById("connectWalletBtn").classList.remove("hidden");
@@ -211,6 +226,87 @@
       p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
       log.appendChild(p);
       log.scrollTop = log.scrollHeight;
+    }
+
+    async function deployV4HookContract() {
+      if (!artifacts) {
+        alert("Contract artifacts are still loading. Please wait 2 seconds.");
+        return;
+      }
+
+      const poolManager = document.getElementById("poolManagerInput").value.trim();
+      const feeRecipient = document.getElementById("feeRecipientInput").value.trim() || userAddress;
+
+      if (!ethers.isAddress(poolManager)) {
+        alert("Invalid Uniswap v4 PoolManager address");
+        return;
+      }
+      if (!ethers.isAddress(feeRecipient)) {
+        alert("Invalid Fee Recipient address");
+        return;
+      }
+
+      const hookBtn = document.getElementById("deployHookBtn");
+      hookBtn.disabled = true;
+      hookBtn.innerText = "⏳ Deploying Hook... Please confirm in wallet";
+
+      try {
+        addLog("🦄 Step 1: Deploying RobinhoodBondingCurveHook...", "text-cyan-400 font-bold");
+        addLog(`Target Uniswap v4 PoolManager: ${poolManager}`);
+        addLog(`Protocol Fee Recipient: ${feeRecipient}`);
+
+        let hookAbi = artifacts.RobinhoodBondingCurveHook ? artifacts.RobinhoodBondingCurveHook.abi : null;
+        let hookBytecode = artifacts.RobinhoodBondingCurveHook ? artifacts.RobinhoodBondingCurveHook.bytecode : null;
+        try {
+          const fresh = await fetch('/contracts/artifacts/RobinhoodBondingCurveHook.json');
+          if (fresh.ok) {
+            const j = await fresh.json();
+            hookAbi = j.abi;
+            hookBytecode = j.bytecode;
+          }
+        } catch (e) {}
+
+        if (!hookAbi || !hookBytecode) {
+          throw new Error("Could not load RobinhoodBondingCurveHook artifact");
+        }
+
+        const hookFactory = new ethers.ContractFactory(hookAbi, hookBytecode, signer);
+        const hookContract = await hookFactory.deploy(poolManager, feeRecipient);
+        addLog(`Tx Submitted: ${hookContract.deploymentTransaction().hash}`, "text-gray-400");
+        addLog("Waiting for block confirmation on Robinhood Chain...");
+
+        await hookContract.waitForDeployment();
+        const hookAddress = await hookContract.getAddress();
+        addLog(`🎉 RobinhoodBondingCurveHook deployed at: ${hookAddress}`, "text-[#00C805] font-bold");
+        addLog("✅ Bitget Swap and DEX aggregators can now quote & swap launchpad tokens out-of-the-box!", "text-cyan-300 font-bold");
+
+        // Save to backend
+        try {
+          await fetch('/api/config/contracts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hookAddress, chainId: 4663 })
+          });
+          addLog("✅ Hook configuration saved to server .env", "text-blue-400");
+        } catch (e) {}
+
+        // Show Results
+        document.getElementById("resultsBox").classList.remove("hidden");
+        document.getElementById("hookResultRow").classList.remove("hidden");
+        const hookLinkEl = document.getElementById("hookLink");
+        if (hookLinkEl) {
+          hookLinkEl.innerText = hookAddress;
+          hookLinkEl.href = `https://robinhoodchain.blockscout.com/address/${hookAddress}`;
+        }
+
+        hookBtn.innerText = "✅ Hook Deployed Successfully!";
+        hookBtn.className = "w-full py-3.5 rounded-2xl bg-gray-800 text-gray-400 font-bold text-sm";
+      } catch (err) {
+        console.error(err);
+        addLog(`❌ Deployment failed: ${err.reason || err.message || err}`, "text-red-400");
+        hookBtn.disabled = false;
+        hookBtn.innerText = "🦄 Retry Deploying Uniswap v4 Hook";
+      }
     }
 
     async function deployContracts() {

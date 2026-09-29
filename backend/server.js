@@ -91,15 +91,23 @@ app.get('/api/health', (req, res) => {
 
 // Save deployed contracts from Web Deployer
 app.post('/api/config/contracts', (req, res) => {
-  const { factoryAddress, routerAddress, chainId = 4663 } = req.body;
-  if (!factoryAddress || !routerAddress) {
-    return res.status(400).json({ error: 'Missing factoryAddress or routerAddress' });
+  const { factoryAddress, routerAddress, hookAddress, chainId = 4663 } = req.body;
+  if (!factoryAddress && !hookAddress) {
+    return res.status(400).json({ error: 'Missing contract addresses' });
   }
 
-  process.env.FACTORY_ADDRESS = factoryAddress;
-  process.env.FACTORY_CONTRACT_ADDRESS = factoryAddress;
-  process.env.ROUTER_V4_ADDRESS = routerAddress;
-  process.env.UNISWAP_V4_ROUTER_ADDRESS = routerAddress;
+  if (factoryAddress) {
+    process.env.FACTORY_ADDRESS = factoryAddress;
+    process.env.FACTORY_CONTRACT_ADDRESS = factoryAddress;
+  }
+  if (routerAddress) {
+    process.env.ROUTER_V4_ADDRESS = routerAddress;
+    process.env.UNISWAP_V4_ROUTER_ADDRESS = routerAddress;
+  }
+  if (hookAddress) {
+    process.env.V4_HOOK_CONTRACT_ADDRESS = hookAddress;
+    process.env.ROBINHOOD_HOOK_ADDRESS = hookAddress;
+  }
   process.env.CHAIN_ID = chainId.toString();
 
   // Persist to .env files
@@ -109,16 +117,27 @@ app.post('/api/config/contracts', (req, res) => {
     if (fs.existsSync(envFile)) {
       let content = fs.readFileSync(envFile, 'utf8');
       content = content.replace(/CHAIN_ID=.*/g, `CHAIN_ID=${chainId}`);
-      content = content.replace(/FACTORY_ADDRESS=.*/g, `FACTORY_ADDRESS=${factoryAddress}`);
-      content = content.replace(/ROUTER_V4_ADDRESS=.*/g, `ROUTER_V4_ADDRESS=${routerAddress}`);
-      content = content.replace(/FACTORY_CONTRACT_ADDRESS=.*/g, `FACTORY_CONTRACT_ADDRESS=${factoryAddress}`);
-      content = content.replace(/UNISWAP_V4_ROUTER_ADDRESS=.*/g, `UNISWAP_V4_ROUTER_ADDRESS=${routerAddress}`);
+      if (factoryAddress) {
+        content = content.replace(/FACTORY_ADDRESS=.*/g, `FACTORY_ADDRESS=${factoryAddress}`);
+        content = content.replace(/FACTORY_CONTRACT_ADDRESS=.*/g, `FACTORY_CONTRACT_ADDRESS=${factoryAddress}`);
+      }
+      if (routerAddress) {
+        content = content.replace(/ROUTER_V4_ADDRESS=.*/g, `ROUTER_V4_ADDRESS=${routerAddress}`);
+        content = content.replace(/UNISWAP_V4_ROUTER_ADDRESS=.*/g, `UNISWAP_V4_ROUTER_ADDRESS=${routerAddress}`);
+      }
+      if (hookAddress) {
+        if (content.includes('V4_HOOK_CONTRACT_ADDRESS=')) {
+          content = content.replace(/V4_HOOK_CONTRACT_ADDRESS=.*/g, `V4_HOOK_CONTRACT_ADDRESS=${hookAddress}`);
+        } else {
+          content += `\nV4_HOOK_CONTRACT_ADDRESS=${hookAddress}\n`;
+        }
+      }
       fs.writeFileSync(envFile, content, 'utf8');
     }
   });
 
-  broadcast({ type: 'CONFIG_UPDATED', factoryAddress, routerAddress, chainId });
-  res.json({ success: true, factoryAddress, routerAddress, chainId });
+  broadcast({ type: 'CONFIG_UPDATED', factoryAddress, routerAddress, hookAddress, chainId });
+  res.json({ success: true, factoryAddress, routerAddress, hookAddress, chainId });
 });
 
 // 2. Upload Logo File (with optional auto-pinning to IPFS via Pinata)

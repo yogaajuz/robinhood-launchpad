@@ -23,6 +23,7 @@ const files = [
   'RobinhoodToken.sol',
   'RobinhoodBondingCurve.sol',
   'RobinhoodUniswapV4MigrationRouter.sol',
+  'RobinhoodBondingCurveHook.sol',
   'RobinhoodTokenFactory.sol'
 ];
 
