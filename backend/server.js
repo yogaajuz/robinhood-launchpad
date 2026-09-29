@@ -302,6 +302,27 @@ app.post('/api/tokens', async (req, res) => {
   }
 });
 
+// Register or Update Uniswap v4 Pool for a token
+app.post('/api/tokens/:id/uniswap-pool', async (req, res) => {
+  try {
+    const { poolId, txHash } = req.body;
+    await query(
+      `UPDATE tokens SET uniswap_v4_pool = ? WHERE id = ?`,
+      [poolId, req.params.id]
+    );
+    broadcast({
+      type: 'UNISWAP_POOL_CREATED',
+      tokenId: req.params.id,
+      poolId,
+      txHash
+    });
+    console.log(`🦄 [Uniswap v4] Registered pool ${poolId} for token ${req.params.id}`);
+    res.json({ success: true, poolId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Update social media links for a token
 app.post('/api/tokens/:id/socials', async (req, res) => {
   try {

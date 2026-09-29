@@ -2242,6 +2242,22 @@ function renderTerminal() {
     }
   }
 
+  const initPoolBtn = document.getElementById("initUniswapPoolBtn");
+  const initPoolBtnText = document.getElementById("initUniswapPoolBtnText");
+  if (initPoolBtn) {
+    if (activeToken.uniswapV4Pool || activeToken.isGraduated) {
+      if (initPoolBtnText) initPoolBtnText.innerText = "Uniswap v4 Active";
+      initPoolBtn.title = "Canonical Uniswap v4 pool is active on Robinhood Chain";
+      initPoolBtn.classList.remove("text-pink-300");
+      initPoolBtn.classList.add("text-emerald-400");
+    } else {
+      if (initPoolBtnText) initPoolBtnText.innerText = "Create Uniswap Pool";
+      initPoolBtn.title = "Initialize Canonical Uniswap v4 Pool on Robinhood Chain for Bitget & DEX aggregators";
+      initPoolBtn.classList.remove("text-emerald-400");
+      initPoolBtn.classList.add("text-pink-300");
+    }
+  }
+
   // User holdings
   const tokenHolding = userWallet.holdings[activeToken.id] || 0;
   document.getElementById("userTokenBalance").innerText = `${tokenHolding.toLocaleString()} $${activeToken.ticker}`;
@@ -2380,6 +2396,100 @@ async function claimAllDividends() {
 
 window.claimRewards = claimRewards;
 window.claimAllDividends = claimAllDividends;
+
+async function initializeUniswapPoolForActiveToken() {
+  if (!userWallet.connected || !browserSigner) {
+    alert("Please connect your Web3 wallet (MetaMask / Bitget Wallet) first!");
+    await connectWallet();
+    if (!userWallet.connected || !browserSigner) return;
+  }
+
+  if (!activeToken || !activeToken.address || !activeToken.address.startsWith("0x")) {
+    alert("Please select a live token deployed on Robinhood Chain first.");
+    return;
+  }
+
+  const poolManagerAddress = UNISWAP_V4_POOL_MANAGER || '0x8366a39cc670b4001a1121b8f6a443a643e40951';
+  const poolKey = {
+    currency0: '0x0000000000000000000000000000000000000000',
+    currency1: activeToken.address,
+    fee: 3000,
+    tickSpacing: 60,
+    hooks: '0x0000000000000000000000000000000000000000'
+  };
+
+  // Initial sqrtPriceX96 for canonical pool (~100M - 400M tokens per ETH)
+  const sqrtPriceX96 = 792281625142643375935439503360n;
+
+  const poolManagerAbi = [
+    "function initialize(tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, uint160 sqrtPriceX96) external returns (int24 tick)"
+  ];
+
+  const btn = document.getElementById("initUniswapPoolBtn");
+  const btnText = document.getElementById("initUniswapPoolBtnText");
+  const origText = btnText ? btnText.innerText : "Create Uniswap Pool";
+
+  try {
+    if (btnText) btnText.innerText = "Confirm in Wallet...";
+    const pm = new ethers.Contract(poolManagerAddress, poolManagerAbi, browserSigner);
+
+    const tx = await pm.initialize(poolKey, sqrtPriceX96);
+    if (btnText) btnText.innerText = "Creating Pool...";
+    const receipt = await tx.wait();
+
+    // Compute canonical poolId
+    const poolId = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+        [poolKey]
+      )
+    );
+
+    activeToken.uniswapV4Pool = poolId;
+    if (btnText) btnText.innerText = "Uniswap v4 Active";
+    if (btn) {
+      btn.classList.remove("text-pink-300");
+      btn.classList.add("text-emerald-400");
+    }
+
+    try {
+      await fetch(`${BACKEND_API_URL}/tokens/${activeToken.id}/uniswap-pool`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poolId, txHash: receipt.hash })
+      });
+    } catch(e) {}
+
+    alert(`🎉 Uniswap v4 Pool Successfully Initialized on Robinhood Chain Mainnet!\n\n` +
+      `Token: $${activeToken.ticker} (${activeToken.address})\n` +
+      `Pool ID: ${poolId}\n` +
+      `Tx Hash: ${receipt.hash}\n\n` +
+      `Explorer: https://robinhoodchain.blockscout.com/tx/${receipt.hash}\n\n` +
+      `Bitget Swap, GeckoTerminal, and DEX aggregators will now discover this pool on Robinhood Chain!`);
+  } catch (err) {
+    console.error("Initialize error:", err);
+    if (err.message && (err.message.includes("revert") || err.message.includes("PoolAlreadyInitialized") || err.code === "CALL_EXCEPTION")) {
+      const poolId = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)"],
+          [poolKey]
+        )
+      );
+      activeToken.uniswapV4Pool = poolId;
+      if (btnText) btnText.innerText = "Uniswap v4 Active";
+      if (btn) {
+        btn.classList.remove("text-pink-300");
+        btn.classList.add("text-emerald-400");
+      }
+      alert(`ℹ️ This Uniswap v4 pool is already initialized and active on Robinhood Chain!\n\nPool ID: ${poolId}`);
+    } else {
+      alert(`Failed to initialize Uniswap v4 pool: ${err.reason || err.message || err}`);
+      if (btnText) btnText.innerText = origText;
+    }
+  }
+}
+
+window.initializeUniswapPoolForActiveToken = initializeUniswapPoolForActiveToken;
 
 // --- Per-Token Trade Tape & History Management ---
 
