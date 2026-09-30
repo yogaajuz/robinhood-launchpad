@@ -914,35 +914,39 @@ function calculateTokenAMM(realEth) {
 }
 
 function calculateTokensOut(ethIn, currentRealEth, token) {
+  const cTax = (token && typeof token.creatorTax === 'number') ? token.creatorTax : 0;
+  const hTax = (token && typeof token.holderTax === 'number') ? token.holderTax : 0;
   const protocolFee = ethIn * AMM_PARAMS.PROTOCOL_FEE_PERCENT;
-  const creatorFee = ethIn * (token.creatorTax / 100);
-  const holderFee = ethIn * (token.holderTax / 100);
+  const creatorFee = ethIn * (cTax / 100);
+  const holderFee = ethIn * (hTax / 100);
   const totalFees = protocolFee + creatorFee + holderFee;
-  const ethAfterFees = ethIn - totalFees;
+  const ethAfterFees = Math.max(0, ethIn - totalFees);
 
   const k = AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.TOKENS_FOR_CURVE;
-  const currentEth = AMM_PARAMS.VIRTUAL_ETH + currentRealEth;
+  const currentEth = AMM_PARAMS.VIRTUAL_ETH + (Number(currentRealEth) || 0);
   const newEth = currentEth + ethAfterFees;
   const currentTokenReserve = k / currentEth;
   const newTokenReserve = k / newEth;
 
-  const tokensOut = currentTokenReserve - newTokenReserve;
+  const tokensOut = Math.max(0, currentTokenReserve - newTokenReserve);
   return { tokensOut, protocolFee, creatorFee, holderFee, totalFees };
 }
 
 function calculateEthOut(tokensIn, currentRealEth, token) {
+  const cTax = (token && typeof token.creatorTax === 'number') ? token.creatorTax : 0;
+  const hTax = (token && typeof token.holderTax === 'number') ? token.holderTax : 0;
   const k = AMM_PARAMS.VIRTUAL_ETH * AMM_PARAMS.TOKENS_FOR_CURVE;
-  const currentEth = AMM_PARAMS.VIRTUAL_ETH + currentRealEth;
+  const currentEth = AMM_PARAMS.VIRTUAL_ETH + (Number(currentRealEth) || 0);
   const currentTokenReserve = k / currentEth;
-  const newTokenReserve = currentTokenReserve + tokensIn;
+  const newTokenReserve = currentTokenReserve + (Number(tokensIn) || 0);
   const newEth = k / newTokenReserve;
-  const grossEth = currentEth - newEth;
+  const grossEth = Math.max(0, currentEth - newEth);
 
   const protocolFee = grossEth * AMM_PARAMS.PROTOCOL_FEE_PERCENT;
-  const creatorFee = grossEth * (token.creatorTax / 100);
-  const holderFee = grossEth * (token.holderTax / 100);
+  const creatorFee = grossEth * (cTax / 100);
+  const holderFee = grossEth * (hTax / 100);
   const totalFees = protocolFee + creatorFee + holderFee;
-  const netEthOut = grossEth - totalFees;
+  const netEthOut = Math.max(0, grossEth - totalFees);
 
   return { netEthOut, protocolFee, creatorFee, holderFee, totalFees };
 }
@@ -1421,13 +1425,14 @@ function connectWebSocket() {
 // --- Real Web3 Mainnet Connection Logic ---
 
 async function connectWallet() {
-  if (typeof window.ethereum === 'undefined') {
-    alert("MetaMask or compatible Web3 wallet not detected!\n\nPlease install MetaMask, Rabby, or Coinbase Wallet to interact with Robinhood Chain Mainnet.");
+  const injectedProvider = window.ethereum || (window.bitkeep && window.bitkeep.ethereum);
+  if (!injectedProvider) {
+    alert("Web3 wallet not detected!\n\nPlease install MetaMask, Bitget Wallet, Rabby, or Coinbase Wallet to interact with Robinhood Chain Mainnet.");
     return;
   }
 
   try {
-    browserProvider = new ethers.BrowserProvider(window.ethereum);
+    browserProvider = new ethers.BrowserProvider(injectedProvider);
     const accounts = await browserProvider.send("eth_requestAccounts", []);
     if (!accounts || accounts.length === 0) {
       alert("No accounts authorized in wallet.");
@@ -3462,10 +3467,29 @@ function startChartLiveTicker() {
     if (activeToken.curveAddress && activeToken.curveAddress.startsWith('0x') && rpcProvider) {
       try {
         const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, rpcProvider);
-        const reserveWei = await curveContract.realEthReserve();
-        const freshRealEth = Number(ethers.formatEther(reserveWei));
-        if (Math.abs(freshRealEth - (activeToken.realEth || 0)) > 0.000000001) {
-          activeToken.realEth = freshRealEth;
+        const [reserveWei, isGrad] = await Promise.all([
+          curveContract.realEthReserve().catch(() => null),
+          curveContract.isGraduated().catch(() => null)
+        ]);
+
+        let stateChanged = false;
+        if (reserveWei !== null) {
+          const freshRealEth = Number(ethers.formatEther(reserveWei));
+          if (Math.abs(freshRealEth - (activeToken.realEth || 0)) > 0.000000001) {
+            activeToken.realEth = freshRealEth;
+            stateChanged = true;
+          }
+        }
+        if (isGrad !== null && isGrad !== activeToken.graduated) {
+          activeToken.graduated = Boolean(isGrad);
+          stateChanged = true;
+        }
+        if (activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET && !activeToken.graduated) {
+          activeToken.graduated = true;
+          stateChanged = true;
+        }
+
+        if (stateChanged) {
           renderTerminal();
         }
       } catch (e) {}
@@ -4047,41 +4071,77 @@ function setSwapMode(mode) {
     }
   }
 
+  const isGraduated = activeToken && (activeToken.graduated || activeToken.isGraduated || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET);
+  if (isGraduated && actionBtn) {
+    actionBtn.className = "w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-95 text-white font-bold text-sm shadow-lg shadow-pink-500/20 transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2";
+    actionBtn.innerHTML = `<span>🦄</span> <span>Graduated to Uniswap v4 — Trade on Bitget</span> <span class="text-xs">↗</span>`;
+  }
+
   updateSwapEstimate();
 }
 
-function updateSwapEstimate() {
+async function updateSwapEstimate() {
   const input = parseFloat(document.getElementById("swapInputAmount")?.value) || 0;
   const outputElem = document.getElementById("swapOutputAmount");
   const feeElem = document.getElementById("swapFeeDisplay");
   const taxBreakdownElem = document.getElementById("swapTaxBreakdown");
 
-  const totalTaxPct = 1.0 + (activeToken ? activeToken.creatorTax : 0) + (activeToken ? activeToken.holderTax : 0);
+  const creatorTax = (activeToken && typeof activeToken.creatorTax === 'number') ? activeToken.creatorTax : 0;
+  const holderTax = (activeToken && typeof activeToken.holderTax === 'number') ? activeToken.holderTax : 0;
+  const totalTaxPct = 1.0 + creatorTax + holderTax;
+
+  if (taxBreakdownElem) {
+    taxBreakdownElem.innerText = `1% Protocol | ${creatorTax}% Dev | ${holderTax}% Holders`;
+  }
 
   if (swapMode === "buy") {
     // BUYING: Input is ETH, Output is Tokens
     if (input <= 0) {
       if (outputElem) outputElem.value = "0";
       if (feeElem) feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
-      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
       return;
     }
     const { tokensOut, totalFees } = calculateTokensOut(input, activeToken ? activeToken.realEth : 0, activeToken);
     if (outputElem) outputElem.value = Math.floor(tokensOut).toLocaleString();
     if (feeElem) feeElem.innerText = `${totalFees.toFixed(4)} ETH (${totalTaxPct.toFixed(1)}%)`;
-    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
+
+    // Query on-chain curve quote if available
+    if (activeToken && activeToken.curveAddress && activeToken.curveAddress.startsWith('0x') && rpcProvider) {
+      try {
+        const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, rpcProvider);
+        const ethWei = ethers.parseEther(input.toString());
+        const res = await curveContract.getTokensOutForEth(ethWei);
+        const tokensOnChain = parseFloat(ethers.formatEther(res[0]));
+        const currentInput = parseFloat(document.getElementById("swapInputAmount")?.value) || 0;
+        if (Math.abs(currentInput - input) < 0.00000001 && tokensOnChain > 0) {
+          if (outputElem) outputElem.value = Math.floor(tokensOnChain).toLocaleString();
+        }
+      } catch (e) {}
+    }
   } else {
     // SELLING: Input is Tokens, Output is ETH
     if (input <= 0) {
       if (outputElem) outputElem.value = "0.0000";
       if (feeElem) feeElem.innerText = `0.000 ETH (${totalTaxPct.toFixed(1)}%)`;
-      if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
       return;
     }
     const { netEthOut, totalFees } = calculateEthOut(input, activeToken ? activeToken.realEth : 0, activeToken);
     if (outputElem) outputElem.value = netEthOut.toFixed(6);
     if (feeElem) feeElem.innerText = `${totalFees.toFixed(6)} ETH (${totalTaxPct.toFixed(1)}%)`;
-    if (taxBreakdownElem) taxBreakdownElem.innerText = `1% Protocol | ${activeToken ? activeToken.creatorTax : 0}% Dev | ${activeToken ? activeToken.holderTax : 0}% Holders`;
+
+    // Query on-chain curve quote if available
+    if (activeToken && activeToken.curveAddress && activeToken.curveAddress.startsWith('0x') && rpcProvider) {
+      try {
+        const curveContract = new ethers.Contract(activeToken.curveAddress, BONDING_CURVE_ABI, rpcProvider);
+        const tokensWei = ethers.parseEther(Math.floor(input).toString());
+        const res = await curveContract.getEthOutForTokens(tokensWei);
+        const netEthOnChain = parseFloat(ethers.formatEther(res[0]));
+        const currentInput = parseFloat(document.getElementById("swapInputAmount")?.value) || 0;
+        if (Math.abs(currentInput - input) < 0.00000001 && netEthOnChain > 0) {
+          if (outputElem) outputElem.value = netEthOnChain.toFixed(6);
+        }
+      } catch (e) {}
+    }
   }
 }
 
@@ -4102,6 +4162,17 @@ async function executeSwap() {
   if (!activeToken.curveAddress || !activeToken.curveAddress.startsWith("0x")) {
     alert(`Token $${activeToken.ticker} is a demo/showcase token.\n\nTo trade live on Robinhood Chain Mainnet, launch your own coin using 'Deploy Coin'!`);
     return;
+  }
+
+  // Check if token has graduated to Uniswap v4 (2.0 ETH target reached)
+  const isGraduated = activeToken && (activeToken.graduated || activeToken.isGraduated || activeToken.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET);
+  if (isGraduated) {
+    if (activeToken.address && activeToken.address.startsWith("0x")) {
+      const bitgetUrl = `https://web3.bitget.com/en/swap?chain=4663&outputCurrency=${activeToken.address}`;
+      alert(`🎉 $${activeToken.ticker} has hit the 2.0 ETH bonding curve target and graduated to Uniswap v4!\n\nAll trading now takes place directly on Uniswap v4 / Bitget Swap.`);
+      window.open(bitgetUrl, "_blank");
+      return;
+    }
   }
 
   const actionBtn = document.getElementById("executeSwapBtn");
@@ -4137,11 +4208,65 @@ async function executeSwap() {
         };
         tx = await curveContract.buyTokens(poolKey, 0n, { value: ethWei });
       } else {
-        tx = await curveContract.buyTokens(0, { value: ethWei });
+        tx = await curveContract.buyTokens(0n, { value: ethWei });
       }
 
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
+
+      const tokenContract = new ethers.Contract(activeToken.address, ERC20_ABI, browserProvider);
+
+      // Parse exact on-chain tokens received from receipt
+      let exactTokensReceived = 0;
+      if (receipt && receipt.logs) {
+        for (const log of receipt.logs) {
+          try {
+            const parsedErc20 = tokenContract.interface.parseLog(log);
+            if (parsedErc20 && parsedErc20.name === 'Transfer') {
+              if (parsedErc20.args.to.toLowerCase() === userWallet.address.toLowerCase()) {
+                exactTokensReceived = parseFloat(ethers.formatEther(parsedErc20.args.value));
+                break;
+              }
+            }
+          } catch (e) {}
+          try {
+            const parsedCurve = curveContract.interface.parseLog(log);
+            if (parsedCurve && parsedCurve.name === 'TokensPurchased') {
+              exactTokensReceived = parseFloat(ethers.formatEther(parsedCurve.args.tokensReceived));
+              break;
+            } else if (parsedCurve && parsedCurve.name === 'CurveSwapExecuted') {
+              exactTokensReceived = parseFloat(ethers.formatEther(parsedCurve.args.tokenAmount));
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (!exactTokensReceived || exactTokensReceived <= 0) {
+        const math = calculateTokensOut(inputAmount, activeToken ? activeToken.realEth : 0, activeToken);
+        exactTokensReceived = math.tokensOut;
+      }
+
+      // Update wallet token balance immediately
+      try {
+        const updatedBal = await tokenContract.balanceOf(userWallet.address);
+        userWallet.holdings[activeToken.id] = parseFloat(ethers.formatEther(updatedBal));
+        userWallet.holdings[activeToken.address] = userWallet.holdings[activeToken.id];
+        const userBalElem = document.getElementById("userTokenBalance");
+        if (userBalElem) {
+          userBalElem.innerText = `${userWallet.holdings[activeToken.id].toLocaleString()} $${activeToken.ticker}`;
+        }
+      } catch (e) {}
+
+      // Update wallet ETH balance immediately
+      try {
+        const freshEth = await browserProvider.getBalance(userWallet.address);
+        userWallet.balanceEth = parseFloat(ethers.formatEther(freshEth));
+        const availBalElem = document.getElementById("swapAvailableBalance");
+        if (availBalElem) {
+          availBalElem.innerText = `Bal: ${userWallet.balanceEth.toFixed(4)} ETH`;
+        }
+      } catch (e) {}
 
       const tradeTs = Date.now();
       const buyTrade = {
@@ -4149,7 +4274,7 @@ async function executeSwap() {
         user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
         rawTrader: userWallet.address,
         eth: inputAmount,
-        tokens: Math.floor(inputAmount * 28000000),
+        tokens: exactTokensReceived,
         timestamp: tradeTs,
         time: "Just now",
         txHash: receipt.hash
@@ -4300,11 +4425,47 @@ async function executeSwap() {
       if (actionBtn) actionBtn.innerText = "Waiting for Confirmation...";
       const receipt = await tx.wait();
 
-      // Update wallet balance immediately
+      // Parse exact on-chain ETH returned from receipt
+      let exactEthReturned = 0;
+      if (receipt && receipt.logs) {
+        for (const log of receipt.logs) {
+          try {
+            const parsedCurve = curveContract.interface.parseLog(log);
+            if (parsedCurve && parsedCurve.name === 'TokensSold') {
+              exactEthReturned = parseFloat(ethers.formatEther(parsedCurve.args.ethReturned));
+              break;
+            } else if (parsedCurve && parsedCurve.name === 'CurveSwapExecuted') {
+              exactEthReturned = parseFloat(ethers.formatEther(parsedCurve.args.ethAmount));
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (!exactEthReturned || exactEthReturned <= 0) {
+        const math = calculateEthOut(inputAmount, activeToken ? activeToken.realEth : 0, activeToken);
+        exactEthReturned = math.netEthOut;
+      }
+
+      // Update wallet token balance immediately
       try {
         const updatedBal = await tokenContract.balanceOf(userWallet.address);
         userWallet.holdings[activeToken.id] = parseFloat(ethers.formatEther(updatedBal));
         userWallet.holdings[activeToken.address] = userWallet.holdings[activeToken.id];
+        const userBalElem = document.getElementById("userTokenBalance");
+        if (userBalElem) {
+          userBalElem.innerText = `${userWallet.holdings[activeToken.id].toLocaleString()} $${activeToken.ticker}`;
+        }
+      } catch (e) {}
+
+      // Update wallet ETH balance immediately
+      try {
+        const freshEth = await browserProvider.getBalance(userWallet.address);
+        userWallet.balanceEth = parseFloat(ethers.formatEther(freshEth));
+        const availBalElem = document.getElementById("swapAvailableBalance");
+        if (availBalElem) {
+          availBalElem.innerText = `Bal: ${userWallet.holdings[activeToken.id].toLocaleString()} $${activeToken.ticker}`;
+        }
       } catch (e) {}
 
       const tradeTs = Date.now();
@@ -4312,7 +4473,7 @@ async function executeSwap() {
         type: "sell",
         user: userWallet.address.slice(0, 6) + "..." + userWallet.address.slice(-4),
         rawTrader: userWallet.address,
-        eth: inputAmount * 0.00000003,
+        eth: exactEthReturned,
         tokens: Math.floor(inputAmount),
         timestamp: tradeTs,
         time: "Just now",
