@@ -303,7 +303,7 @@
           <div id="terminalSocialLinks" class="flex items-center gap-2 mt-3 flex-wrap"></div>
 
           <!-- Key Metrics Grid -->
-          <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-800 text-center">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-gray-800 text-center">
             <div class="bg-[#121721] p-2 rounded-xl border border-gray-800/60">
               <div class="text-[10px] text-gray-400 uppercase">Market Cap</div>
               <div id="terminalMcap" class="text-xs sm:text-sm font-mono font-bold text-white mt-0.5">--</div>
@@ -311,6 +311,13 @@
             <div class="bg-[#121721] p-2 rounded-xl border border-gray-800/60">
               <div class="text-[10px] text-gray-400 uppercase">24h Volume</div>
               <div id="terminalVolume" class="text-xs sm:text-sm font-mono font-bold text-white mt-0.5">--</div>
+            </div>
+            <div onclick="switchTokenTab('holders')" class="bg-[#121721] hover:bg-[#1a2436] p-2 rounded-xl border border-gray-800/60 hover:border-cyan-500/40 cursor-pointer transition group" title="Click to view full Token Holders list">
+              <div class="text-[10px] text-gray-400 group-hover:text-cyan-400 uppercase flex items-center justify-center gap-1">
+                <span>Holders</span>
+                <span class="text-[9px] opacity-70">↗</span>
+              </div>
+              <div id="terminalHoldersCount" class="text-xs sm:text-sm font-mono font-bold text-cyan-300 mt-0.5 group-hover:text-cyan-200">--</div>
             </div>
             <div class="bg-[#121721] p-2 rounded-xl border border-gray-800/60">
               <div class="text-[10px] text-gray-400 uppercase">Your Balance</div>
@@ -472,12 +479,39 @@
 
     </div>
 
-    <!-- Live Trade Activity & Community Chat Tabs -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
+    <!-- Live Trade Activity, Token Holders & Community Chat Tabs -->
+    <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 shadow-xl mb-10">
+      
+      <!-- Tab Controls Bar -->
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-4 flex-wrap gap-2">
+        <div class="flex items-center gap-1.5 bg-[#121721] p-1 rounded-xl border border-gray-800 text-xs">
+          <button id="tabBtnTrades" type="button" onclick="switchTokenTab('trades')" class="px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer bg-[#00C805] text-black shadow-md">
+            <span>⚡</span> <span>Live Trades</span>
+            <span id="tradeTapeCountBadge" class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/25 text-black">0</span>
+          </button>
+          <button id="tabBtnHolders" type="button" onclick="switchTokenTab('holders')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+            <span>👥</span> <span>Holders</span>
+            <span id="tokenHoldersTabCount" class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-gray-800 text-gray-300">0</span>
+          </button>
+          <button id="tabBtnChat" type="button" onclick="switchTokenTab('chat')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer">
+            <span>💬</span> <span>Community Thread</span>
+            <span id="tokenCommentsTabCount" class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-gray-800 text-gray-300">0</span>
+          </button>
+        </div>
 
-      <!-- Live Trade Tape -->
-      <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col h-[340px] shadow-lg">
-        <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
+        <div class="flex items-center gap-2 text-xs flex-wrap">
+          <button type="button" onclick="refreshActiveTokenHoldersAndTrades()" class="px-2.5 py-1.5 bg-[#121721] hover:bg-gray-800 text-gray-300 hover:text-white rounded-xl border border-gray-800 font-mono transition text-[11px] flex items-center gap-1 cursor-pointer" title="Refresh trades and holders data">
+            <span>🔄</span> <span>Refresh</span>
+          </button>
+          <a id="tokenBlockscoutHoldersLink" href="https://robinhoodchain.blockscout.com" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 bg-[#121721] hover:bg-gray-800 text-emerald-400 hover:text-emerald-300 rounded-xl border border-emerald-500/30 font-mono transition text-[11px] flex items-center gap-1" title="View token on Robinhood Chain Blockscout Explorer">
+            <span>Blockscout Explorer</span> <span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- TAB 1: LIVE TRADE TAPE -->
+      <div id="tokenTabTrades" class="block">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800/60">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#00C805] animate-ping"></span>
             <span class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
@@ -485,16 +519,60 @@
               <span id="tradeTapeTokenBadge" class="text-[#00C805] font-mono font-bold"></span>
             </span>
           </div>
-          <div class="flex items-center gap-2">
-            <span id="tradeTapeCountBadge" class="text-[10px] text-gray-400 font-mono bg-gray-800/80 px-2 py-0.5 rounded-full">0 Trades</span>
-            <a id="tradeTapeExplorerLink" href="https://robinhoodchain.blockscout.com" target="_blank" class="text-[10px] text-emerald-400 hover:underline font-mono">Tx Explorer ↗</a>
-          </div>
+          <a id="tradeTapeExplorerLink" href="https://robinhoodchain.blockscout.com" target="_blank" class="text-[10px] text-emerald-400 hover:underline font-mono">Tx Explorer ↗</a>
         </div>
-        <div id="tradeHistoryContainer" class="flex-1 overflow-y-auto pr-1"></div>
+        <div id="tradeHistoryContainer" class="max-h-[380px] overflow-y-auto pr-1"></div>
       </div>
 
-      <!-- Community Chat Wall -->
-      <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 flex flex-col h-[280px]">
+      <!-- TAB 2: TOKEN HOLDERS LIST -->
+      <div id="tokenTabHolders" class="hidden space-y-4">
+        <!-- Holders Overview Summary Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="bg-[#121721] p-3 rounded-xl border border-gray-800/80">
+            <div class="text-[10px] text-gray-400 uppercase tracking-wider">Total Holders</div>
+            <div id="holdersTotalCount" class="text-lg font-black font-mono text-white mt-0.5">--</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">Unique Wallets</div>
+          </div>
+          <div class="bg-[#121721] p-3 rounded-xl border border-gray-800/80">
+            <div class="text-[10px] text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+              <span>🏦</span> <span>Bonding Curve</span>
+            </div>
+            <div id="holdersCurvePercent" class="text-lg font-black font-mono text-cyan-300 mt-0.5">--%</div>
+            <div id="holdersCurveAmount" class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">-- tokens</div>
+          </div>
+          <div class="bg-[#121721] p-3 rounded-xl border border-gray-800/80">
+            <div class="text-[10px] text-purple-400 uppercase tracking-wider flex items-center gap-1">
+              <span>📊</span> <span>Top 10 Supply</span>
+            </div>
+            <div id="holdersTop10Percent" class="text-lg font-black font-mono text-purple-300 mt-0.5">--%</div>
+            <div class="text-[10px] text-gray-400 mt-0.5">Concentration</div>
+          </div>
+          <div class="bg-[#121721] p-3 rounded-xl border border-gray-800/80">
+            <div class="text-[10px] text-gray-400 uppercase tracking-wider">Total Fixed Supply</div>
+            <div class="text-lg font-black font-mono text-[#00C805] mt-0.5">1,000,000,000</div>
+            <div class="text-[10px] text-gray-400 mt-0.5">100% Fair Launch</div>
+          </div>
+        </div>
+
+        <!-- Filter / Search Row -->
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div class="relative flex-1 min-w-[200px]">
+            <input id="searchHoldersInput" oninput="filterHoldersList(this.value)" type="text" placeholder="Search holder address or role (e.g. dev, curve)..." class="w-full bg-[#121721] text-xs text-white rounded-xl px-3 py-2 pl-8 border border-gray-800 focus:outline-none focus:border-cyan-500 font-mono">
+            <span class="absolute left-2.5 top-2.5 text-xs text-gray-500">🔍</span>
+          </div>
+          <div class="text-xs text-gray-400 font-mono">
+            <span>Showing: </span>
+            <span id="holdersFilteredCount" class="text-white font-bold">0</span>
+            <span> holders</span>
+          </div>
+        </div>
+
+        <!-- Holders List Table / Cards -->
+        <div id="holdersListContainer" class="max-h-[420px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <!-- TAB 3: COMMUNITY CHAT WALL -->
+      <div id="tokenTabChat" class="hidden flex flex-col h-[380px]">
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
           <div class="flex items-center gap-2">
             <span>💬</span>
@@ -505,7 +583,7 @@
         <div id="commentsContainer" class="flex-1 overflow-y-auto pr-1"></div>
         <div class="flex gap-2 mt-2 pt-2 border-t border-gray-800">
           <input id="commentInput" type="text" placeholder="Drop your comment or alpha..." class="flex-1 bg-[#121721] rounded-xl px-3 py-2 text-xs text-white border border-gray-800 focus:outline-none focus:border-[#00C805]">
-          <button onclick="postComment()" class="px-3 py-2 bg-[#00C805] hover:bg-[#00e700] text-black text-xs font-bold rounded-xl transition">
+          <button onclick="postComment()" class="px-3 py-2 bg-[#00C805] hover:bg-[#00e700] text-black text-xs font-bold rounded-xl transition cursor-pointer">
             Send
           </button>
         </div>

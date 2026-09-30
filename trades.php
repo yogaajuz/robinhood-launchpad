@@ -74,6 +74,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    // Token Holders aggregator
+    if (isset($_GET['holders']) || (isset($_GET['action']) && $_GET['action'] === 'holders')) {
+        $token = isset($_GET['token']) ? strtolower(trim($_GET['token'])) : null;
+        $ticker = isset($_GET['ticker']) ? strtolower(trim($_GET['ticker'])) : null;
+        $holders = [];
+
+        $tradeList = [];
+        if ($token && isset($data[$token])) {
+            $tradeList = $data[$token];
+        } elseif ($ticker && isset($data[$ticker])) {
+            $tradeList = $data[$ticker];
+        } else if ($token) {
+            foreach ($data as $k => $tl) {
+                if (strtolower($k) === $token) {
+                    $tradeList = $tl;
+                    break;
+                }
+            }
+        }
+
+        if (is_array($tradeList)) {
+            $balances = [];
+            foreach ($tradeList as $tr) {
+                $trader = isset($tr['trader']) ? strtolower(trim($tr['trader'])) : '';
+                if (!$trader) continue;
+                $isBuy = !empty($tr['is_buy']) || (isset($tr['type']) && $tr['type'] === 'buy');
+                $tokens = isset($tr['token_amount']) ? floatval($tr['token_amount']) : (isset($tr['tokens']) ? floatval($tr['tokens']) : 0.0);
+                if (!isset($balances[$trader])) $balances[$trader] = 0.0;
+                if ($isBuy) {
+                    $balances[$trader] += $tokens;
+                } else {
+                    $balances[$trader] = max(0.0, $balances[$trader] - $tokens);
+                }
+            }
+            foreach ($balances as $trader => $bal) {
+                if ($bal > 0.0001) {
+                    $holders[] = [
+                        'trader' => $trader,
+                        'balance' => $bal
+                    ];
+                }
+            }
+            usort($holders, function($a, $b) {
+                return $b['balance'] <=> $a['balance'];
+            });
+        }
+
+        echo json_encode(['success' => true, 'holders' => $holders]);
+        exit;
+    }
+
     $token = isset($_GET['token']) ? strtolower(trim($_GET['token'])) : null;
     $ticker = isset($_GET['ticker']) ? strtolower(trim($_GET['ticker'])) : null;
 

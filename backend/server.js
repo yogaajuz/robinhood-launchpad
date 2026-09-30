@@ -429,6 +429,47 @@ app.get('/api/tokens/:id/trades', async (req, res) => {
   }
 });
 
+// 5b. Get Token Holders Distribution
+app.get('/api/tokens/:id/holders', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Fetch token record for curve address and creator
+    const tokenRows = await query(
+      `SELECT id, curve_address, creator, symbol, name, tokens_left, real_eth, is_graduated
+       FROM tokens
+       WHERE LOWER(id) = LOWER(?) OR LOWER(curve_address) = LOWER(?) OR LOWER(symbol) = LOWER(?)
+       LIMIT 1`,
+      [id, id, id]
+    );
+    const tokenInfo = (tokenRows && tokenRows[0]) ? tokenRows[0] : null;
+
+    // 2. Aggregate trader balances from recorded trades
+    const tradeHolders = await query(
+      `SELECT 
+         LOWER(trader) as trader,
+         COALESCE(SUM(CASE WHEN (is_buy IS TRUE OR is_buy = TRUE) THEN token_amount ELSE -token_amount END), 0) as balance,
+         COUNT(*) as total_trades,
+         MAX(timestamp) as last_trade_time
+       FROM trades
+       WHERE LOWER(token_address) = LOWER(?)
+          OR LOWER(token_address) IN (SELECT LOWER(id) FROM tokens WHERE LOWER(id) = LOWER(?) OR LOWER(symbol) = LOWER(?) OR LOWER(curve_address) = LOWER(?))
+       GROUP BY LOWER(trader)
+       HAVING COALESCE(SUM(CASE WHEN (is_buy IS TRUE OR is_buy = TRUE) THEN token_amount ELSE -token_amount END), 0) > 0.0001
+       ORDER BY balance DESC`,
+      [id, id, id, id]
+    );
+
+    res.json({
+      success: true,
+      token: tokenInfo,
+      holders: tradeHolders || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. Get Candlesticks (OHLCV) for TradingView Chart
 app.get('/api/tokens/:id/candles', async (req, res) => {
   try {

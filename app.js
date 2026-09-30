@@ -1676,6 +1676,7 @@ function switchView(viewName, tokenId = null) {
     }
     renderTerminal();
     fetchTokenTrades(activeToken);
+    fetchTokenHolders(activeToken);
     startChartLiveTicker();
     setTimeout(drawChart, 60);
     if (userWallet.connected) {
@@ -2454,6 +2455,10 @@ function renderTerminal() {
   setSwapMode(swapMode);
   renderTradeHistory();
   renderComments();
+  const terminalHoldersBadge = document.getElementById("terminalHoldersCount");
+  if (terminalHoldersBadge && currentTokenHolders && currentTokenHolders.length > 0) {
+    terminalHoldersBadge.innerText = currentTokenHolders.length;
+  }
   updateSwapEstimate();
 }
 
@@ -2774,6 +2779,11 @@ function recordTrade(token, tradeData) {
     } catch (e) {
       console.warn("Chart render warning:", e);
     }
+    try {
+      fetchTokenHolders(activeToken);
+    } catch (e) {
+      console.warn("Holders update warning:", e);
+    }
   }
   updatePlatformStats();
 }
@@ -2937,6 +2947,11 @@ function renderComments() {
   const container = document.getElementById("commentsContainer");
   if (!container) return;
 
+  const commentsBadge = document.getElementById("tokenCommentsTabCount");
+  if (commentsBadge) {
+    commentsBadge.innerText = comments ? comments.length : 0;
+  }
+
   container.innerHTML = comments.map(c => `
     <div class="flex items-start gap-2.5 text-xs py-2 border-b border-gray-800/40">
       <span class="text-xl p-1 bg-[#121721] rounded-lg border border-gray-800">${c.avatar}</span>
@@ -2949,6 +2964,466 @@ function renderComments() {
       </div>
     </div>
   `).join("");
+}
+
+// --- Token Tabs Switcher & Real-Time Token Holders Engine ---
+
+let currentTokenTab = 'trades'; // 'trades' | 'holders' | 'chat'
+let currentTokenHolders = [];
+let holderSearchQuery = '';
+
+function switchTokenTab(tabName) {
+  currentTokenTab = tabName || 'trades';
+
+  const tabBtnTrades = document.getElementById('tabBtnTrades');
+  const tabBtnHolders = document.getElementById('tabBtnHolders');
+  const tabBtnChat = document.getElementById('tabBtnChat');
+
+  const tabTrades = document.getElementById('tokenTabTrades');
+  const tabHolders = document.getElementById('tokenTabHolders');
+  const tabChat = document.getElementById('tokenTabChat');
+
+  const activeBtnClass = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer bg-[#00C805] text-black shadow-md';
+  const inactiveBtnClass = 'px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer bg-transparent';
+
+  [
+    { name: 'trades', btn: tabBtnTrades, pane: tabTrades },
+    { name: 'holders', btn: tabBtnHolders, pane: tabHolders },
+    { name: 'chat', btn: tabBtnChat, pane: tabChat }
+  ].forEach(t => {
+    if (!t.btn || !t.pane) return;
+    if (t.name === currentTokenTab) {
+      t.btn.className = activeBtnClass;
+      t.pane.classList.remove('hidden');
+      if (t.name === 'chat') {
+        t.pane.classList.add('flex');
+      } else {
+        t.pane.classList.add('block');
+      }
+    } else {
+      t.btn.className = inactiveBtnClass;
+      t.pane.classList.add('hidden');
+      t.pane.classList.remove('block', 'flex');
+    }
+  });
+
+  if (currentTokenTab === 'holders') {
+    if (!currentTokenHolders || currentTokenHolders.length === 0) {
+      fetchTokenHolders(activeToken);
+    } else {
+      filterHoldersList(holderSearchQuery);
+    }
+  } else if (currentTokenTab === 'trades') {
+    renderTradeHistory();
+  } else if (currentTokenTab === 'chat') {
+    renderComments();
+  }
+}
+
+async function refreshActiveTokenHoldersAndTrades() {
+  if (!activeToken) return;
+  const refreshBtn = event?.currentTarget || event?.target;
+  if (refreshBtn) refreshBtn.classList.add('animate-spin');
+  try {
+    await Promise.allSettled([
+      fetchTokenTrades(activeToken),
+      fetchTokenHolders(activeToken)
+    ]);
+  } finally {
+    if (refreshBtn) refreshBtn.classList.remove('animate-spin');
+  }
+}
+
+function copyHolderAddress(address, btnElementId) {
+  if (!address) return;
+  const doCopy = () => {
+    const btn = document.getElementById(btnElementId);
+    if (btn) {
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = `<span class="text-[#00C805] font-bold text-[10px]">✓</span>`;
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+      }, 1500);
+    }
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(address).then(doCopy).catch(() => {
+      prompt("Copy wallet address:", address);
+    });
+  } else {
+    prompt("Copy wallet address:", address);
+  }
+}
+
+async function fetchTokenHolders(token) {
+  if (!token) token = activeToken || tokens[0];
+  if (!token) return;
+
+  const lookupKey = (token.id || token.address || '').toLowerCase();
+  const curveAddr = (token.curveAddress || '').toLowerCase();
+  const creatorAddr = (token.creatorAddress || token.creator || '').toLowerCase();
+  const userAddr = (userWallet && userWallet.address) ? userWallet.address.toLowerCase() : '';
+  const dexRouterAddr = (V4_ROUTER_ADDRESS || '0x00c5fc8CD66B9b0D9C021D2329AEAB05b9aEfB10').toLowerCase();
+  const tokenSupply = AMM_PARAMS.TOTAL_SUPPLY || 1_000_000_000;
+
+  // Set explorer link in holders tab header
+  const blockscoutLink = document.getElementById("tokenBlockscoutHoldersLink");
+  if (blockscoutLink) {
+    if (token.address && token.address.startsWith("0x")) {
+      blockscoutLink.href = `https://robinhoodchain.blockscout.com/token/${token.address}`;
+    } else if (token.curveAddress && token.curveAddress.startsWith("0x")) {
+      blockscoutLink.href = `https://robinhoodchain.blockscout.com/address/${token.curveAddress}`;
+    } else {
+      blockscoutLink.href = "https://robinhoodchain.blockscout.com";
+    }
+  }
+
+  const holdersMap = new Map();
+
+  // 1. Fetch from local backend API (/api/tokens/:id/holders)
+  try {
+    const res = await fetch(`${BACKEND_API_URL}/tokens/${lookupKey}/holders`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.holders)) {
+        data.holders.forEach(h => {
+          const raw = (h.trader || '').toLowerCase();
+          if (raw && raw.startsWith('0x')) {
+            holdersMap.set(raw, {
+              address: h.trader,
+              balance: Number(h.balance || 0),
+              tradesCount: Number(h.total_trades || 0),
+              lastTradeTime: h.last_trade_time
+            });
+          }
+        });
+      }
+    }
+  } catch (e) {
+    // Backend offline / local fallback
+  }
+
+  // 2. Fallback to PHP trades.php (?action=holders)
+  if (holdersMap.size === 0) {
+    try {
+      const phpUrl = `/trades.php?action=holders&token=${encodeURIComponent(lookupKey)}&ticker=${encodeURIComponent(token.ticker || '')}`;
+      const res = await fetch(phpUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.holders)) {
+          data.holders.forEach(h => {
+            const raw = (h.trader || '').toLowerCase();
+            if (raw && raw.startsWith('0x')) {
+              holdersMap.set(raw, {
+                address: h.trader,
+                balance: Number(h.balance || 0),
+                tradesCount: 0,
+                lastTradeTime: null
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Aggregate all traders from local trade tape history
+  const localTrades = getTradesForToken(token) || [];
+  const localBalances = {};
+  localTrades.forEach(t => {
+    const trader = (t.rawTrader || t.user || '').toLowerCase();
+    if (!trader || !trader.startsWith('0x')) return;
+    if (!localBalances[trader]) localBalances[trader] = 0;
+    const tokensCount = Number(t.tokens || 0);
+    if (t.type === 'buy' || t.is_buy === 1 || t.is_buy === true) {
+      localBalances[trader] += tokensCount;
+    } else {
+      localBalances[trader] -= tokensCount;
+    }
+  });
+
+  for (const [traderAddr, bal] of Object.entries(localBalances)) {
+    if (!holdersMap.has(traderAddr)) {
+      holdersMap.set(traderAddr, {
+        address: traderAddr,
+        balance: Math.max(0, bal),
+        tradesCount: 1,
+        lastTradeTime: null
+      });
+    }
+  }
+
+  // 4. Bonding Curve Reserve Allocation
+  // Pre-graduation: holds tokensLeft (up to 800M). Post-graduation: 0.
+  const isGraduated = !!(token.isGraduated || (token.realEth >= AMM_PARAMS.GRADUATION_ETH_TARGET));
+  const curveTokens = isGraduated ? 0 : (typeof token.tokensLeft === 'number' ? token.tokensLeft : 800_000_000);
+  if (curveAddr && curveAddr.startsWith('0x')) {
+    holdersMap.set(curveAddr, {
+      address: token.curveAddress,
+      balance: curveTokens,
+      isCurve: true
+    });
+  }
+
+  // 5. Uniswap v4 Liquidity Pool Allocation (200,000,000 tokens upon graduation)
+  if (isGraduated) {
+    const poolAddr = token.uniswapV4Pool || dexRouterAddr;
+    holdersMap.set(poolAddr.toLowerCase(), {
+      address: poolAddr,
+      balance: 200_000_000,
+      isDex: true
+    });
+  }
+
+  // 6. Creator Wallet Check
+  if (creatorAddr && creatorAddr.startsWith('0x')) {
+    if (!holdersMap.has(creatorAddr)) {
+      holdersMap.set(creatorAddr, {
+        address: token.creatorAddress || token.creator,
+        balance: 0,
+        isCreator: true
+      });
+    } else {
+      holdersMap.get(creatorAddr).isCreator = true;
+    }
+  }
+
+  // 7. Connected User Wallet Check
+  if (userAddr && userAddr.startsWith('0x')) {
+    const userHolding = (userWallet.holdings && userWallet.holdings[token.id]) ? Number(userWallet.holdings[token.id]) : 0;
+    if (!holdersMap.has(userAddr)) {
+      if (userHolding > 0) {
+        holdersMap.set(userAddr, {
+          address: userWallet.address,
+          balance: userHolding,
+          isUser: true
+        });
+      }
+    } else {
+      holdersMap.get(userAddr).isUser = true;
+      if (userHolding > 0 && holdersMap.get(userAddr).balance === 0) {
+        holdersMap.get(userAddr).balance = userHolding;
+      }
+    }
+  }
+
+  // 8. Live On-Chain Balance Verification via RPC Provider
+  if (rpcProvider && token.address && token.address.startsWith('0x')) {
+    try {
+      const tokenContract = new ethers.Contract(token.address, ERC20_ABI, rpcProvider);
+      const addressesToQuery = Array.from(holdersMap.keys()).filter(a => a && a.startsWith('0x')).slice(0, 30);
+      
+      const balanceQueries = addressesToQuery.map(async (addr) => {
+        try {
+          const balWei = await tokenContract.balanceOf(addr);
+          const balParsed = Number(ethers.formatEther(balWei));
+          const h = holdersMap.get(addr);
+          if (h) {
+            h.balance = balParsed;
+            h.onChainVerified = true;
+          }
+        } catch (e) {
+          // Keep existing estimate on query failure
+        }
+      });
+      await Promise.allSettled(balanceQueries);
+    } catch (e) {
+      console.warn("Live on-chain holder balances query note:", e);
+    }
+  }
+
+  // 9. Process, Sort, and Tag Holders
+  let processedHolders = Array.from(holdersMap.values()).filter(h => h.balance > 0.0001);
+  processedHolders.sort((a, b) => b.balance - a.balance);
+
+  const ethPrice = token.priceEth || 0;
+  const ethUsd = ethUsdPrice || AMM_PARAMS.ETH_PRICE_USD || 4200;
+
+  processedHolders.forEach((h, index) => {
+    h.rank = index + 1;
+    h.percentage = (h.balance / tokenSupply) * 100;
+    h.usdValue = h.balance * ethPrice * ethUsd;
+
+    h.tags = [];
+    const lower = (h.address || '').toLowerCase();
+    if (curveAddr && lower === curveAddr) {
+      h.tags.push({ label: '🏦 Bonding Curve', style: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' });
+    }
+    if ((dexRouterAddr && lower === dexRouterAddr) || (token.uniswapV4Pool && lower === token.uniswapV4Pool.toLowerCase())) {
+      h.tags.push({ label: '🦄 Uniswap v4 Pool', style: 'bg-pink-500/15 text-pink-300 border-pink-500/30' });
+    }
+    if (creatorAddr && lower === creatorAddr) {
+      h.tags.push({ label: '👑 Dev / Creator', style: 'bg-amber-500/15 text-amber-300 border-amber-500/30' });
+    }
+    if (userAddr && lower === userAddr) {
+      h.tags.push({ label: '💎 You', style: 'bg-[#00C805]/15 text-[#00C805] border-[#00C805]/30' });
+    }
+  });
+
+  currentTokenHolders = processedHolders;
+
+  // 10. Update Overview Metrics
+  const totalCount = processedHolders.length;
+  const terminalHoldersBadge = document.getElementById("terminalHoldersCount");
+  if (terminalHoldersBadge) terminalHoldersBadge.innerText = totalCount;
+
+  const tabHoldersCount = document.getElementById("tokenHoldersTabCount");
+  if (tabHoldersCount) tabHoldersCount.innerText = totalCount;
+
+  const overviewTotal = document.getElementById("holdersTotalCount");
+  if (overviewTotal) overviewTotal.innerText = totalCount;
+
+  // Curve Percentage
+  const curveHolder = processedHolders.find(h => (h.address || '').toLowerCase() === curveAddr);
+  const curveBal = curveHolder ? curveHolder.balance : (isGraduated ? 0 : curveTokens);
+  const curvePct = (curveBal / tokenSupply) * 100;
+
+  const overviewCurvePct = document.getElementById("holdersCurvePercent");
+  if (overviewCurvePct) {
+    overviewCurvePct.innerText = isGraduated ? "0.00% (Graduated)" : `${curvePct.toFixed(2)}%`;
+  }
+  const overviewCurveAmt = document.getElementById("holdersCurveAmount");
+  if (overviewCurveAmt) {
+    overviewCurveAmt.innerText = `${Math.floor(curveBal).toLocaleString()} tokens`;
+  }
+
+  // Top 10 Concentration (excluding bonding curve)
+  const nonCurveHolders = processedHolders.filter(h => (h.address || '').toLowerCase() !== curveAddr);
+  const top10Bal = nonCurveHolders.slice(0, 10).reduce((acc, h) => acc + h.balance, 0);
+  const top10Pct = (top10Bal / tokenSupply) * 100;
+
+  const overviewTop10 = document.getElementById("holdersTop10Percent");
+  if (overviewTop10) {
+    overviewTop10.innerText = `${top10Pct.toFixed(2)}%`;
+  }
+
+  // Render the list with current filter
+  filterHoldersList(holderSearchQuery);
+}
+
+function filterHoldersList(query) {
+  holderSearchQuery = (query || '').trim().toLowerCase();
+  let filtered = currentTokenHolders;
+
+  if (holderSearchQuery) {
+    filtered = currentTokenHolders.filter(h => {
+      const addr = (h.address || '').toLowerCase();
+      const hasTag = h.tags && h.tags.some(t => t.label.toLowerCase().includes(holderSearchQuery));
+      const rankStr = `#${h.rank}`;
+      return addr.includes(holderSearchQuery) || hasTag || rankStr === holderSearchQuery;
+    });
+  }
+
+  const filteredBadge = document.getElementById("holdersFilteredCount");
+  if (filteredBadge) {
+    filteredBadge.innerText = filtered.length;
+  }
+
+  renderHoldersList(filtered);
+}
+
+function renderHoldersList(holders) {
+  const container = document.getElementById("holdersListContainer");
+  if (!container) return;
+
+  const currentToken = activeToken || tokens[0];
+  const ticker = currentToken ? currentToken.ticker : "TOKEN";
+
+  if (!holders || holders.length === 0) {
+    container.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-12 text-center text-gray-500 bg-[#121721] rounded-2xl border border-gray-800">
+        <div class="text-3xl mb-2">🔍</div>
+        <p class="text-xs font-semibold text-gray-300">No token holders found</p>
+        <p class="text-[11px] text-gray-500 mt-1 max-w-xs">
+          ${holderSearchQuery ? `No holders match query "${escapeHtml(holderSearchQuery)}". Clear your search to view all holders.` : 'Be the first to trade on this bonding curve to become the top holder!'}
+        </p>
+      </div>`;
+    return;
+  }
+
+  const rowsHtml = holders.map(h => {
+    let rankBadge = `<span class="font-mono font-bold text-gray-400">#${h.rank}</span>`;
+    if (h.rank === 1) {
+      rankBadge = `<span class="px-2 py-0.5 rounded-lg bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 text-xs flex items-center gap-1">🥇 #1</span>`;
+    } else if (h.rank === 2) {
+      rankBadge = `<span class="px-2 py-0.5 rounded-lg bg-slate-300/20 text-slate-200 font-bold border border-slate-300/30 text-xs flex items-center gap-1">🥈 #2</span>`;
+    } else if (h.rank === 3) {
+      rankBadge = `<span class="px-2 py-0.5 rounded-lg bg-amber-700/20 text-amber-500 font-bold border border-amber-700/30 text-xs flex items-center gap-1">🥉 #3</span>`;
+    }
+
+    const shortAddr = h.address ? (h.address.slice(0, 6) + '...' + h.address.slice(-4)) : '0x...';
+    const copyBtnId = `copyHolder_${h.rank}_${(h.address || '').slice(-4)}`;
+
+    const tagsHtml = (h.tags || []).map(t => `
+      <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${t.style}">
+        ${t.label}
+      </span>
+    `).join(' ');
+
+    const formattedAmount = Math.floor(h.balance).toLocaleString();
+    const formattedPercent = h.percentage.toFixed(2);
+    const formattedUsd = h.usdValue >= 1 ? `$${h.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : (h.usdValue > 0 ? `$${h.usdValue.toFixed(4)}` : '$0.00');
+
+    let barColor = 'bg-[#00C805]';
+    if (h.isCurve) barColor = 'bg-cyan-400';
+    else if (h.isDex) barColor = 'bg-pink-400';
+    else if (h.isCreator) barColor = 'bg-amber-400';
+
+    return `
+      <div class="flex items-center justify-between gap-3 p-3 bg-[#121721] hover:bg-[#1a2333]/90 transition rounded-xl border border-gray-800/70 text-xs">
+        <!-- Left: Rank & Wallet Info -->
+        <div class="flex items-center gap-3 min-w-[170px] sm:min-w-[220px]">
+          <div class="w-14 flex items-center justify-center flex-shrink-0">
+            ${rankBadge}
+          </div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="https://robinhoodchain.blockscout.com/address/${escapeHtml(h.address)}" target="_blank" rel="noopener noreferrer" class="font-mono text-gray-200 hover:text-white hover:underline font-bold flex items-center gap-1" title="View address on Blockscout">
+                <span>${escapeHtml(shortAddr)}</span>
+                <span class="text-[10px] text-emerald-400">↗</span>
+              </a>
+              <button id="${copyBtnId}" onclick="copyHolderAddress('${escapeHtml(h.address)}', '${copyBtnId}')" type="button" class="text-gray-500 hover:text-white transition cursor-pointer text-[11px]" title="Copy address">
+                📋
+              </button>
+            </div>
+            ${tagsHtml ? `<div class="flex items-center gap-1 flex-wrap">${tagsHtml}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Center / Right: Balance & Value -->
+        <div class="text-right flex-1 min-w-[120px]">
+          <div class="text-white font-mono font-bold">
+            ${formattedAmount} <span class="text-gray-400 font-normal text-[11px]">$${escapeHtml(ticker)}</span>
+          </div>
+          <div class="text-[10px] text-gray-400 font-mono mt-0.5">
+            ≈ ${formattedUsd}
+          </div>
+        </div>
+
+        <!-- Right: % of Supply Bar -->
+        <div class="w-24 sm:w-36 flex flex-col items-end flex-shrink-0">
+          <span class="font-mono font-bold text-gray-200 text-xs">${formattedPercent}%</span>
+          <div class="w-full bg-gray-800/80 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div class="${barColor} h-1.5 rounded-full" style="width: ${Math.min(100, Math.max(1, h.percentage))}%"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="space-y-2">
+      <!-- Header row on tablet/desktop -->
+      <div class="hidden sm:flex items-center justify-between text-[10px] uppercase font-bold text-gray-400 px-3 pb-1 tracking-wider">
+        <div class="w-14 text-center">Rank</div>
+        <div class="flex-1 pl-4">Wallet Address & Role</div>
+        <div class="w-40 text-right">Holding Balance</div>
+        <div class="w-36 text-right">Supply Share</div>
+      </div>
+      ${rowsHtml}
+    </div>
+  `;
 }
 
 // --- Interactive Token Chart Engine ---
