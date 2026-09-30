@@ -2464,6 +2464,18 @@ function renderTerminal() {
   if (terminalHoldersBadge && currentTokenHolders && currentTokenHolders.length > 0) {
     terminalHoldersBadge.innerText = currentTokenHolders.length;
   }
+  if (currentTokenHolders && currentTokenHolders.length > 0) {
+    renderCoinPageHolders(currentTokenHolders);
+  } else {
+    const coinHoldersContainer = document.getElementById("coinPageHoldersList");
+    if (coinHoldersContainer) {
+      coinHoldersContainer.innerHTML = `
+        <div class="py-6 text-center text-gray-500 text-xs bg-[#121721] rounded-xl border border-gray-800">
+          <i class="fas fa-spinner fa-spin text-[#00C805] text-base mb-1.5 block"></i>
+          <span>Loading token holders...</span>
+        </div>`;
+    }
+  }
   updateSwapEstimate();
 }
 
@@ -3303,7 +3315,22 @@ async function fetchTokenHolders(token) {
     overviewTop10.innerText = `${top10Pct.toFixed(2)}%`;
   }
 
-  // Render the list with current filter
+  // Update Coin Page Holder Section Metrics
+  const coinCurvePct = document.getElementById("coinPageCurveSupplyPct");
+  if (coinCurvePct) {
+    coinCurvePct.innerText = isGraduated ? "0.00% (Graduated)" : `${curvePct.toFixed(2)}%`;
+  }
+  const coinTop10Pct = document.getElementById("coinPageTop10SupplyPct");
+  if (coinTop10Pct) {
+    coinTop10Pct.innerText = `${top10Pct.toFixed(2)}%`;
+  }
+  const coinHoldersTotal = document.getElementById("coinPageHoldersTotalBadge");
+  if (coinHoldersTotal) {
+    coinHoldersTotal.innerText = totalCount;
+  }
+
+  // Render both coin page section and full table
+  renderCoinPageHolders(processedHolders);
   filterHoldersList(holderSearchQuery);
 }
 
@@ -3429,6 +3456,82 @@ function renderHoldersList(holders) {
       ${rowsHtml}
     </div>
   `;
+}
+
+function renderCoinPageHolders(holders) {
+  const container = document.getElementById("coinPageHoldersList");
+  if (!container) return;
+
+  const currentToken = activeToken || tokens[0];
+  const ticker = currentToken ? currentToken.ticker : "TOKEN";
+
+  if (!holders || holders.length === 0) {
+    container.innerHTML = `
+      <div class="py-6 text-center text-gray-500 text-xs bg-[#121721] rounded-xl border border-gray-800">
+        <span>No holders recorded yet.</span>
+      </div>`;
+    return;
+  }
+
+  // Display top holders on the coin page section
+  const topHolders = holders.slice(0, 8);
+
+  container.innerHTML = topHolders.map(h => {
+    let rankBadge = `<span class="font-mono text-gray-400 font-bold text-[11px]">#${h.rank}</span>`;
+    if (h.rank === 1) rankBadge = `<span class="text-amber-400 font-bold text-xs">🥇 #1</span>`;
+    else if (h.rank === 2) rankBadge = `<span class="text-slate-300 font-bold text-xs">🥈 #2</span>`;
+    else if (h.rank === 3) rankBadge = `<span class="text-amber-600 font-bold text-xs">🥉 #3</span>`;
+
+    const shortAddr = h.address ? (h.address.slice(0, 6) + '...' + h.address.slice(-4)) : '0x...';
+
+    let roleTag = '';
+    if (h.isCurve) {
+      roleTag = `<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Bonding Curve</span>`;
+    } else if (h.isDex) {
+      roleTag = `<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-pink-500/15 text-pink-300 border border-pink-500/30">Uniswap v4</span>`;
+    } else if (h.isCreator) {
+      roleTag = `<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Dev</span>`;
+    } else if (h.isUser) {
+      roleTag = `<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00C805]/15 text-[#00C805] border border-[#00C805]/30">You</span>`;
+    }
+
+    let barColor = 'bg-[#00C805]';
+    if (h.isCurve) barColor = 'bg-cyan-400';
+    else if (h.isDex) barColor = 'bg-pink-400';
+    else if (h.isCreator) barColor = 'bg-amber-400';
+
+    const formattedAmount = Math.floor(h.balance).toLocaleString();
+    const formattedPercent = h.percentage.toFixed(2);
+
+    return `
+      <div class="p-2.5 bg-[#121721] hover:bg-[#1a2333] transition rounded-xl border border-gray-800/80 text-xs">
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="w-8 shrink-0">${rankBadge}</span>
+            <a href="https://robinhoodchain.blockscout.com/address/${escapeHtml(h.address)}" target="_blank" rel="noopener noreferrer" class="font-mono text-gray-200 hover:text-white hover:underline text-[11px] truncate" title="${escapeHtml(h.address)}">
+              ${escapeHtml(shortAddr)}
+            </a>
+            ${roleTag}
+          </div>
+          <div class="text-right shrink-0">
+            <span class="font-mono font-bold px-2 py-0.5 rounded-lg border text-xs bg-[#00C805]/15 text-[#00C805] border-[#00C805]/30">
+              ${formattedPercent}%
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+          <span>${formattedAmount} $${escapeHtml(ticker)}</span>
+          <span>${h.usdValue >= 1 ? '$' + Math.round(h.usdValue).toLocaleString() : (h.usdValue > 0 ? '$' + h.usdValue.toFixed(2) : '$0')}</span>
+        </div>
+        <div class="w-full bg-gray-800/70 rounded-full h-1.5 overflow-hidden">
+          <div class="${barColor} h-1.5 rounded-full" style="width: ${Math.min(100, Math.max(1, h.percentage))}%"></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const totalBadge = document.getElementById("coinPageHoldersTotalBadge");
+  if (totalBadge) totalBadge.innerText = holders.length;
 }
 
 // --- Interactive Token Chart Engine ---

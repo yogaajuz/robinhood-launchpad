@@ -475,6 +475,39 @@
           </div>
         </div>
 
+        <!-- Coin Page Section: Top Holders & Distribution List with Percentage -->
+        <div class="rounded-2xl bg-[#181f2c] border border-[#242e42] p-4 shadow-xl">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">👥</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-white">Top Holders & Supply %</span>
+            </div>
+            <button type="button" onclick="switchTokenTab('holders')" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-mono transition flex items-center gap-1 cursor-pointer" title="View full holder table below">
+              <span>View All (<span id="coinPageHoldersTotalBadge">0</span>)</span>
+              <span>→</span>
+            </button>
+          </div>
+
+          <!-- Summary Metric Pills -->
+          <div class="grid grid-cols-2 gap-2 mb-3 text-center">
+            <div class="bg-[#121721] p-2 rounded-xl border border-gray-800/70">
+              <div class="text-[10px] text-cyan-400 uppercase flex items-center justify-center gap-1">
+                <span>🏦</span> <span>Bonding Curve</span>
+              </div>
+              <div id="coinPageCurveSupplyPct" class="text-xs sm:text-sm font-mono font-bold text-cyan-300 mt-0.5">--%</div>
+            </div>
+            <div class="bg-[#121721] p-2 rounded-xl border border-gray-800/70">
+              <div class="text-[10px] text-purple-400 uppercase flex items-center justify-center gap-1">
+                <span>📊</span> <span>Top 10 Supply</span>
+              </div>
+              <div id="coinPageTop10SupplyPct" class="text-xs sm:text-sm font-mono font-bold text-purple-300 mt-0.5">--%</div>
+            </div>
+          </div>
+
+          <!-- Coin Page Holder List Container -->
+          <div id="coinPageHoldersList" class="space-y-2 max-h-[340px] overflow-y-auto pr-1"></div>
+        </div>
+
       </div>
 
     </div>
