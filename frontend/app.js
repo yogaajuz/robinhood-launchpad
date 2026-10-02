@@ -2325,8 +2325,8 @@ function renderTokenGrid() {
     const isSelected = activeToken.id === t.id;
 
     return `
-      <div onclick="openTokenDetail('${t.id}')" class="group relative rounded-xl bg-[#181f2c] hover:bg-[#1f2737] border ${isSelected ? 'border-[#00C805] shadow-lg shadow-[#00C805]/15' : 'border-[#242e42]'} hover:border-[#00C805]/60 p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.01]">
-        ${t.graduated ? `<div class="absolute top-3 right-3 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><span>🦄</span> Graduated v4</div>` : ''}
+      <div onclick="openTokenDetail('${t.id}')" class="group relative rounded-2xl bg-[#121722] hover:bg-[#161D2B] border ${isSelected ? 'border-[#00C805] shadow-lg shadow-[#00C805]/15' : 'border-[#1E2638]'} hover:border-[#00C805]/50 hover:shadow-xl hover:shadow-[#00C805]/5 p-4 sm:p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.01]">
+        ${t.graduated ? `<div class="absolute top-3.5 right-3.5 text-[10px] bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 font-mono"><span>🦄</span> Graduated v4</div>` : ''}
 
         <div>
           <div class="flex items-start gap-3">
@@ -2338,8 +2338,8 @@ function renderTokenGrid() {
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-bold text-white text-sm truncate group-hover:text-[#00C805] transition-colors">${t.name}</span>
-                <span class="text-[11px] font-mono text-[#00C805] font-semibold">$${t.ticker}</span>
+                <span class="font-extrabold text-white text-sm truncate group-hover:text-[#00C805] transition-colors">${t.name}</span>
+                <span class="text-xs font-mono-num text-[#00C805] font-bold">$${t.ticker}</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">By <span class="font-mono text-gray-300">${t.creator}</span></div>
             </div>
@@ -2355,25 +2355,25 @@ function renderTokenGrid() {
         <div class="mt-4 pt-3 border-t border-gray-800/80">
           <div class="flex items-center justify-between text-xs mb-1.5">
             <span class="text-gray-400">Market Cap:</span>
-            <span class="font-mono font-bold text-white">$${t.marketCapUsd.toLocaleString()}</span>
+            <span class="font-mono-num font-bold text-white">$${t.marketCapUsd.toLocaleString()}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs mb-2">
             <span class="text-gray-400">Uniswap v4 Progress:</span>
-            <span class="font-mono text-[#00C805] font-semibold">${math.formattedPercent}</span>
+            <span class="font-mono-num text-[#00C805] font-bold">${math.formattedPercent}</span>
           </div>
 
-          <div class="w-full bg-[#121721] h-1.5 rounded-full overflow-hidden">
-            <div class="progress-fill h-full" style="width: ${math.visualBarWidth}%"></div>
+          <div class="w-full bg-[#080B10] h-2 rounded-full overflow-hidden p-0.5 border border-[#1E2638]">
+            <div class="progress-fill h-full rounded-full" style="width: ${math.visualBarWidth}%"></div>
           </div>
 
           <div class="mt-3 flex items-center justify-between text-[11px] text-gray-400 gap-2">
-            <span class="text-[#00C805] group-hover:underline font-semibold flex items-center gap-1">
+            <span class="text-[#00C805] group-hover:underline font-bold flex items-center gap-1">
               <span>Trade & View</span> <span>→</span>
             </span>
             <div class="flex items-center gap-1.5 flex-wrap justify-end">
               ${renderMiniSocialsHtml(t)}
-              ${t.holderTax > 0 ? `<span class="text-cyan-300 font-mono text-[10px]">💎 ${t.holderTax}%</span>` : ''}
+              ${t.holderTax > 0 ? `<span class="text-cyan-300 font-mono-num text-[10px]">💎 ${t.holderTax}%</span>` : ''}
             </div>
           </div>
         </div>
@@ -2932,19 +2932,19 @@ function renderTradeHistory() {
     const traderShort = trade.user || (traderAddr.length > 10 ? traderAddr.slice(0, 6) + '...' + traderAddr.slice(-4) : traderAddr);
 
     return `
-      <div class="flex items-center justify-between text-xs py-2 px-2 border-b border-gray-800/60 font-mono hover:bg-[#1f293d]/50 transition rounded-lg">
+      <div class="flex items-center justify-between text-xs py-2 px-2.5 border-b border-[#1E2638]/70 font-mono-num hover:bg-[#161D2B] transition rounded-xl">
         <div class="flex items-center gap-2">
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isBuy ? 'bg-[#00C805]/15 text-[#00C805] border border-[#00C805]/30' : 'bg-[#ff4b4b]/15 text-[#ff4b4b] border border-[#ff4b4b]/30'}">
+          <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${isBuy ? 'bg-[#00C805]/15 text-[#00C805] border border-[#00C805]/30' : 'bg-[#FF3B57]/15 text-[#FF3B57] border border-[#FF3B57]/30'}">
             ${trade.type.toUpperCase()}
           </span>
-          <a href="https://robinhoodchain.blockscout.com/address/${escapeHtml(traderAddr)}" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-white hover:underline transition">
+          <a href="https://robinhoodchain.blockscout.com/address/${escapeHtml(traderAddr)}" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-white hover:underline transition font-mono">
             ${escapeHtml(traderShort)}
           </a>
         </div>
         <div class="text-right">
-          <div class="text-white font-medium flex items-center justify-end gap-1.5">
+          <div class="text-white font-medium flex items-center justify-end gap-1.5 font-mono-num">
             <span>${tokensFormatted} ${escapeHtml(ticker)}</span>
-            <span class="text-gray-500 text-[10px]">(${ethFormatted} ETH)</span>
+            <span class="text-gray-400 text-[10px]">(${ethFormatted} ETH)</span>
           </div>
           <div class="flex items-center justify-end gap-2 text-[10px] text-gray-500 mt-0.5">
             <span>${escapeHtml(trade.time || 'Just now')}</span>
@@ -3504,7 +3504,7 @@ function renderCoinPageHolders(holders) {
     const formattedPercent = h.percentage.toFixed(2);
 
     return `
-      <div class="p-2.5 bg-[#121721] hover:bg-[#1a2333] transition rounded-xl border border-gray-800/80 text-xs">
+      <div class="p-2.5 bg-[#0E131E] hover:bg-[#161D2B] transition rounded-xl border border-[#1E2638] text-xs">
         <div class="flex items-center justify-between mb-1">
           <div class="flex items-center gap-1.5 truncate">
             <span class="w-8 shrink-0">${rankBadge}</span>
@@ -3514,16 +3514,16 @@ function renderCoinPageHolders(holders) {
             ${roleTag}
           </div>
           <div class="text-right shrink-0">
-            <span class="font-mono font-bold px-2 py-0.5 rounded-lg border text-xs bg-[#00C805]/15 text-[#00C805] border-[#00C805]/30">
+            <span class="font-mono-num font-extrabold px-2 py-0.5 rounded-lg border text-xs bg-[#00C805]/15 text-[#00C805] border-[#00C805]/30">
               ${formattedPercent}%
             </span>
           </div>
         </div>
-        <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono mb-1">
+        <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono-num mb-1">
           <span>${formattedAmount} $${escapeHtml(ticker)}</span>
           <span>${h.usdValue >= 1 ? '$' + Math.round(h.usdValue).toLocaleString() : (h.usdValue > 0 ? '$' + h.usdValue.toFixed(2) : '$0')}</span>
         </div>
-        <div class="w-full bg-gray-800/70 rounded-full h-1.5 overflow-hidden">
+        <div class="w-full bg-[#080B10] rounded-full h-1.5 overflow-hidden border border-[#1E2638]/60">
           <div class="${barColor} h-1.5 rounded-full" style="width: ${Math.min(100, Math.max(1, h.percentage))}%"></div>
         </div>
       </div>
@@ -4113,21 +4113,21 @@ function setSwapMode(mode) {
   const ticker = activeToken ? activeToken.ticker : "TOKEN";
 
   if (mode === "buy") {
-    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#00C805] text-black shadow cursor-pointer";
-    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer";
+    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-extrabold rounded-lg bg-[#00C805] text-black shadow-md shadow-[#00C805]/20 cursor-pointer transition";
+    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer transition";
     if (actionBtn) {
-      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#00C805] hover:bg-[#00e700] text-black font-bold text-sm shadow-lg shadow-[#00C805]/20 transition active:scale-[0.98] cursor-pointer";
+      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#00C805] hover:bg-[#00E506] text-black font-extrabold text-sm shadow-lg shadow-[#00C805]/25 transition active:scale-[0.98] cursor-pointer";
       actionBtn.innerText = `Instant Buy ($${ticker}) with ETH`;
     }
     if (inputLabel) inputLabel.innerText = "You Pay (ETH)";
     if (outputLabel) outputLabel.innerText = `You Receive ($${ticker})`;
     if (inputBadge) {
       inputBadge.innerText = "ETH";
-      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-white shrink-0";
+      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-[#121722] rounded-lg text-white shrink-0 border border-[#1E2638]";
     }
     if (outputBadge) {
       outputBadge.innerText = `$${ticker}`;
-      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-[#00C805]/20 text-[#00C805] rounded-lg shrink-0";
+      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-[#00C805]/20 text-[#00C805] rounded-lg shrink-0 border border-[#00C805]/30";
     }
     if (inputAmountElem) inputAmountElem.placeholder = "0.0";
     if (availableBal) {
@@ -4135,29 +4135,29 @@ function setSwapMode(mode) {
     }
     if (presetsContainer) {
       presetsContainer.innerHTML = `
-        <button type="button" onclick="setPresetAmount(0.01)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.01 ETH</button>
-        <button type="button" onclick="setPresetAmount(0.05)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.05 ETH</button>
-        <button type="button" onclick="setPresetAmount(0.1)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.10 ETH</button>
-        <button type="button" onclick="setPresetAmount(0.5)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">0.50 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.01)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">0.01 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.05)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">0.05 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.1)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">0.10 ETH</button>
+        <button type="button" onclick="setPresetAmount(0.5)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">0.50 ETH</button>
       `;
     }
   } else {
     // SELL MODE: User sells Tokens, receives ETH!
-    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-[#ff4b4b] text-white shadow cursor-pointer";
-    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer";
+    if (sellTab) sellTab.className = "flex-1 py-2 text-xs font-extrabold rounded-lg bg-[#FF3B57] text-white shadow-md shadow-[#FF3B57]/20 cursor-pointer transition";
+    if (buyTab) buyTab.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white cursor-pointer transition";
     if (actionBtn) {
-      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#ff4b4b] hover:bg-[#e03a3a] text-white font-bold text-sm shadow-lg shadow-[#ff4b4b]/20 transition active:scale-[0.98] cursor-pointer";
+      actionBtn.className = "w-full py-3.5 rounded-xl bg-[#FF3B57] hover:bg-[#E02844] text-white font-extrabold text-sm shadow-lg shadow-[#FF3B57]/25 transition active:scale-[0.98] cursor-pointer";
       actionBtn.innerText = `Instant Sell ($${ticker}) for ETH`;
     }
     if (inputLabel) inputLabel.innerText = `You Sell ($${ticker})`;
     if (outputLabel) outputLabel.innerText = "You Receive (ETH)";
     if (inputBadge) {
       inputBadge.innerText = `$${ticker}`;
-      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-red-500/20 text-red-300 rounded-lg shrink-0";
+      inputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-red-500/20 text-red-300 rounded-lg shrink-0 border border-red-500/30";
     }
     if (outputBadge) {
       outputBadge.innerText = "ETH";
-      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-gray-800 rounded-lg text-white shrink-0";
+      outputBadge.className = "text-xs font-bold font-mono px-2.5 py-1 bg-[#121722] rounded-lg text-white shrink-0 border border-[#1E2638]";
     }
     if (inputAmountElem) inputAmountElem.placeholder = "0";
     const holding = activeToken ? (userWallet.holdings[activeToken.id] || 0) : 0;
@@ -4166,10 +4166,10 @@ function setSwapMode(mode) {
     }
     if (presetsContainer) {
       presetsContainer.innerHTML = `
-        <button type="button" onclick="setPresetPercent(25)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">25%</button>
-        <button type="button" onclick="setPresetPercent(50)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">50%</button>
-        <button type="button" onclick="setPresetPercent(75)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-gray-300 border border-gray-800 cursor-pointer">75%</button>
-        <button type="button" onclick="setPresetPercent(100)" class="flex-1 py-1 rounded-lg bg-[#121721] hover:bg-gray-800 text-[#00C805] border border-gray-800 font-bold cursor-pointer">100%</button>
+        <button type="button" onclick="setPresetPercent(25)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">25%</button>
+        <button type="button" onclick="setPresetPercent(50)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">50%</button>
+        <button type="button" onclick="setPresetPercent(75)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-gray-300 hover:text-white border border-[#1E2638] cursor-pointer transition font-mono-num font-semibold">75%</button>
+        <button type="button" onclick="setPresetPercent(100)" class="flex-1 py-1 rounded-lg bg-[#0E131E] hover:bg-[#161D2B] text-[#FF3B57] hover:text-white border border-[#1E2638] font-bold cursor-pointer transition font-mono-num">100%</button>
       `;
     }
   }

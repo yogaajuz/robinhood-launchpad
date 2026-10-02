@@ -18,7 +18,9 @@ $files = @(
     @{ Local = "backend\indexer.js"; Entry = "backend/indexer.js" },
     @{ Local = "trades.php"; Entry = "trades.php" },
     @{ Local = "socials.php"; Entry = "socials.php" },
-    @{ Local = "upload.php"; Entry = "upload.php" }
+    @{ Local = "upload.php"; Entry = "upload.php" },
+    @{ Local = "styles.css"; Entry = "styles.css" },
+    @{ Local = "frontend\styles.css"; Entry = "frontend/styles.css" }
 )
 
 foreach ($item in $files) {
