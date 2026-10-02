@@ -19,8 +19,14 @@ $files = @(
     @{ Local = "trades.php"; Entry = "trades.php" },
     @{ Local = "socials.php"; Entry = "socials.php" },
     @{ Local = "upload.php"; Entry = "upload.php" },
+    @{ Local = "frontend\trades.php"; Entry = "frontend/trades.php" },
+    @{ Local = "frontend\socials.php"; Entry = "frontend/socials.php" },
+    @{ Local = "frontend\upload.php"; Entry = "frontend/upload.php" },
     @{ Local = "styles.css"; Entry = "styles.css" },
-    @{ Local = "frontend\styles.css"; Entry = "frontend/styles.css" }
+    @{ Local = "frontend\styles.css"; Entry = "frontend/styles.css" },
+    @{ Local = ".htaccess"; Entry = ".htaccess" },
+    @{ Local = "uploads\.htaccess"; Entry = "uploads/.htaccess" },
+    @{ Local = "frontend\uploads\.htaccess"; Entry = "frontend/uploads/.htaccess" }
 )
 
 foreach ($item in $files) {

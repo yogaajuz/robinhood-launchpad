@@ -1,0 +1,49 @@
+# ==============================================================================
+# Robin Pump Launchpad - Uploads Directory Isolation (.htaccess)
+# ==============================================================================
+
+# 1. Disable Directory Listing and Script Execution
+Options -Indexes -ExecCGI
+ServerSignature Off
+
+# 2. Disable PHP and Script Handlers
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps .cgi .pl .py .sh
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .phps .cgi .pl .py .sh
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# 3. Deny direct access to executable and internal data files
+<FilesMatch "(?i)\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|py|sh|bash|env|json|sql|bak|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 4. Only allow safe image file formats to be served
+<FilesMatch "(?i)\.(png|jpe?g|gif|webp|svg|ico)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Allow from all
+    </IfModule>
+</FilesMatch>
+
+# 5. Security Headers for Served Images (Anti-XSS Sandbox)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'"
+</IfModule>

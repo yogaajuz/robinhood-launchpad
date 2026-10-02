@@ -37,19 +37,33 @@ if (fs.existsSync(assetsDir)) {
   app.use('/assets', express.static(assetsDir));
 }
 
-// Monolith Hosting Mode: Serve frontend and root static files
+// Monolith Hosting Mode: Serve frontend and root static files safely
 const frontendDir = path.join(__dirname, '../frontend');
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir));
 }
-const rootDir = path.join(__dirname, '..');
-app.use(express.static(rootDir));
 
-// Serve compiled contract artifacts
-const contractsDir = path.join(__dirname, '../contracts');
-if (fs.existsSync(contractsDir)) {
-  app.use('/contracts', express.static(contractsDir));
-}
+// Security Guard: Prevent serving sensitive files (e.g., .env, .zip, .git, config files)
+const rootDir = path.join(__dirname, '..');
+const blockedRootFiles = new Set([
+  '.env', '.env.example', 'package.json', 'package-lock.json',
+  'docker-compose.yml', 'dockerfile', 'foundry.toml', 'render.yaml',
+  'vercel.json', 'namecheap-deploy.zip', 'deployment_guide.md', 'readme.md'
+]);
+
+app.use((req, res, next) => {
+  const reqBase = path.basename(req.path).toLowerCase();
+  const reqExt = path.extname(req.path).toLowerCase();
+  if (reqBase.startsWith('.') || reqExt === '.zip' || reqExt === '.sol' || blockedRootFiles.has(reqBase)) {
+    return res.status(403).json({ error: 'Access denied: protected file' });
+  }
+  next();
+});
+
+app.use(express.static(rootDir, {
+  dotfiles: 'ignore',
+  index: ['index.html']
+}));
 
 // Multer storage for token logo files
 const storage = multer.diskStorage({
@@ -94,9 +108,21 @@ app.get('/api/health', (req, res) => {
 
 // Save deployed contracts from Web Deployer
 app.post('/api/config/contracts', (req, res) => {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (adminKey) {
+    const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+    if (authHeader !== adminKey && authHeader !== `Bearer ${adminKey}`) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Contract updates via API disabled in production without ADMIN_API_KEY' });
+  }
+
   const { factoryAddress, routerAddress, hookAddress, chainId = 4663 } = req.body;
-  if (!factoryAddress && !hookAddress) {
-    return res.status(400).json({ error: 'Missing contract addresses' });
+  const isEvmAddr = (addr) => !addr || /^0x[a-fA-F0-9]{40}$/.test(addr);
+
+  if ((!factoryAddress && !hookAddress) || !isEvmAddr(factoryAddress) || !isEvmAddr(routerAddress) || !isEvmAddr(hookAddress)) {
+    return res.status(400).json({ error: 'Missing or invalid Ethereum contract address' });
   }
 
   if (factoryAddress) {

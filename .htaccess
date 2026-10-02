@@ -1,0 +1,60 @@
+# ==============================================================================
+# Robin Pump Launchpad - Apache Hardening Configuration (.htaccess)
+# ==============================================================================
+
+# 1. Prevent Directory Browsing
+Options -Indexes
+ServerSignature Off
+
+# 2. Enforce HTTPS (Compatible with Cloudflare Full / Full Strict Proxy)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 3. Block Direct Access to Sensitive & Backup Files
+<FilesMatch "(?i)(^\..*|\.(env.*|zip|tar|gz|tgz|bak|backup|old|sql|log|toml|yml|yaml|sol|md)|package(-lock)?\.json|composer\.(json|lock)|trades\.json|socials\.json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 4. HTTP Security Headers
+<IfModule mod_headers.c>
+    # Prevent Clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    # Prevent MIME Sniffing
+    Header set X-Content-Type-Options "nosniff"
+    # Cross-Site Scripting Filter
+    Header set X-XSS-Protection "1; mode=block"
+    # Strict Referrer Policy
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    # Restrict Hardware Permissions
+    Header set Permissions-Policy "geolocation=(), camera=(), microphone=()"
+    # HSTS - Force HTTPS for 1 year
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+</IfModule>
+
+# 5. GZIP Performance Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# 6. Static Asset Browser Caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+</IfModule>

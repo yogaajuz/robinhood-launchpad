@@ -165,20 +165,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $tokenKey = isset($body['token']) ? strtolower(trim($body['token'])) : (isset($body['tokenAddress']) ? strtolower(trim($body['tokenAddress'])) : null);
-    if (!$tokenKey) {
-        echo json_encode(['success' => false, 'error' => 'Missing token address']);
+    $tokenRaw = isset($body['token']) ? trim($body['token']) : (isset($body['tokenAddress']) ? trim($body['tokenAddress']) : null);
+    if (!$tokenRaw || !preg_match('/^(0x[a-fA-F0-9]{40}|[a-zA-Z0-9_-]{1,32})$/', $tokenRaw)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid or missing token identifier']);
+        exit;
+    }
+    $tokenKey = strtolower($tokenRaw);
+
+    $txHash = isset($body['txHash']) ? trim($body['txHash']) : (isset($body['tx_hash']) ? trim($body['tx_hash']) : null);
+    if (!$txHash || !preg_match('/^0x[a-fA-F0-9]{64}$/', $txHash)) {
+        echo json_encode(['success' => false, 'error' => 'Valid Ethereum transaction hash (0x + 64 hex chars) required']);
         exit;
     }
 
-    $txHash = isset($body['txHash']) ? trim($body['txHash']) : (isset($body['tx_hash']) ? trim($body['tx_hash']) : null);
+    $traderRaw = isset($body['trader']) ? trim($body['trader']) : (isset($body['user']) ? trim($body['user']) : '');
+    $trader = preg_match('/^0x[a-fA-F0-9]{40}$/', $traderRaw) ? $traderRaw : '0x0000000000000000000000000000000000000000';
+
+    $ethAmount = isset($body['ethAmount']) ? abs(floatval($body['ethAmount'])) : (isset($body['eth']) ? abs(floatval($body['eth'])) : 0);
+    $tokenAmount = isset($body['tokenAmount']) ? abs(floatval($body['tokenAmount'])) : (isset($body['tokens']) ? abs(floatval($body['tokens'])) : 0);
+
     $tradeEntry = [
-        'tx_hash' => $txHash ?: ('0x' . bin2hex(random_bytes(32))),
-        'trader' => isset($body['trader']) ? trim($body['trader']) : (isset($body['user']) ? trim($body['user']) : '0x...'),
+        'tx_hash' => $txHash,
+        'trader' => $trader,
         'is_buy' => isset($body['isBuy']) ? (bool)$body['isBuy'] : (isset($body['is_buy']) ? (bool)$body['is_buy'] : (isset($body['type']) && $body['type'] === 'buy')),
-        'eth_amount' => isset($body['ethAmount']) ? (float)$body['ethAmount'] : (isset($body['eth']) ? (float)$body['eth'] : 0),
-        'token_amount' => isset($body['tokenAmount']) ? (float)$body['tokenAmount'] : (isset($body['tokens']) ? (float)$body['tokens'] : 0),
-        'timestamp' => isset($body['timestamp']) ? $body['timestamp'] : date('c')
+        'eth_amount' => $ethAmount,
+        'token_amount' => $tokenAmount,
+        'timestamp' => isset($body['timestamp']) ? substr(strip_tags($body['timestamp']), 0, 30) : date('c')
     ];
 
     $data = getTradesData($tradesFile);

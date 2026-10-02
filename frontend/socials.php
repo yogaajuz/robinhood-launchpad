@@ -61,21 +61,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $id = isset($body['id']) ? strtolower(trim($body['id'])) : null;
-    $ticker = isset($body['ticker']) ? strtoupper(trim($body['ticker'])) : null;
-    $address = isset($body['address']) ? strtolower(trim($body['address'])) : null;
+    function sanitizeSocialUrl($url) {
+        if (!$url) return null;
+        $url = trim($url);
+        if (!preg_match('~^https?://~i', $url)) {
+            return null;
+        }
+        return filter_var($url, FILTER_SANITIZE_URL);
+    }
+
+    $id = isset($body['id']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', strtolower(trim($body['id']))) : null;
+    $ticker = isset($body['ticker']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', strtoupper(trim($body['ticker']))) : null;
+    $address = (isset($body['address']) && preg_match('/^0x[a-fA-F0-9]{40}$/', trim($body['address']))) ? strtolower(trim($body['address'])) : null;
 
     if (!$id && !$ticker && !$address) {
-        echo json_encode(['success' => false, 'error' => 'Missing token identifier (id, ticker, or address)']);
+        echo json_encode(['success' => false, 'error' => 'Missing valid token identifier (id, ticker, or address)']);
         exit;
     }
 
     $entry = [
-        'website' => isset($body['website']) ? trim($body['website']) : null,
-        'twitter' => isset($body['twitter']) ? trim($body['twitter']) : null,
-        'telegram' => isset($body['telegram']) ? trim($body['telegram']) : null,
-        'youtube' => isset($body['youtube']) ? trim($body['youtube']) : null,
-        'discord' => isset($body['discord']) ? trim($body['discord']) : null,
+        'website' => sanitizeSocialUrl(isset($body['website']) ? $body['website'] : null),
+        'twitter' => sanitizeSocialUrl(isset($body['twitter']) ? $body['twitter'] : null),
+        'telegram' => sanitizeSocialUrl(isset($body['telegram']) ? $body['telegram'] : null),
+        'youtube' => sanitizeSocialUrl(isset($body['youtube']) ? $body['youtube'] : null),
+        'discord' => sanitizeSocialUrl(isset($body['discord']) ? $body['discord'] : null),
         'updatedAt' => time()
     ];
 
