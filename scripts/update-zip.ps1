@@ -26,7 +26,10 @@ $files = @(
     @{ Local = "frontend\styles.css"; Entry = "frontend/styles.css" },
     @{ Local = ".htaccess"; Entry = ".htaccess" },
     @{ Local = "uploads\.htaccess"; Entry = "uploads/.htaccess" },
-    @{ Local = "frontend\uploads\.htaccess"; Entry = "frontend/uploads/.htaccess" }
+    @{ Local = "frontend\uploads\.htaccess"; Entry = "frontend/uploads/.htaccess" },
+    @{ Local = "whitepaper.html"; Entry = "whitepaper.html" },
+    @{ Local = "frontend\whitepaper.html"; Entry = "frontend/whitepaper.html" },
+    @{ Local = "WHITEPAPER.md"; Entry = "WHITEPAPER.md" }
 )
 
 foreach ($item in $files) {
