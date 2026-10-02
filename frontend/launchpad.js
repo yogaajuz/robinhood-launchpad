@@ -2259,9 +2259,11 @@ function renderKothBanner() {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
           <div class="flex flex-col items-center shrink-0">
+            <div class="mb-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] sm:text-[11px] font-black uppercase tracking-wider font-mono shadow-sm">
+              <span>👑</span> <span>King of the Hill</span>
+            </div>
             <div class="relative">
-              ${renderTokenIconHtml(koth.icon, "w-20 h-20 sm:w-24 sm:h-24 text-4xl rounded-2xl", koth)}
-              <span class="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold">👑 KOTH</span>
+              ${renderTokenIconHtml(koth.icon, "w-20 h-20 sm:w-24 sm:h-24 text-4xl rounded-2xl shadow-md", koth)}
             </div>
             ${renderTokenContractUnderLogoHtml(koth)}
           </div>
