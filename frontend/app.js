@@ -447,9 +447,10 @@ function renderTokenIconHtml(icon, sizeClass = "w-10 h-10 text-2xl", tokenObj = 
     }
   }
 
+  const roundedClass = sizeClass.includes("rounded-") ? "" : "rounded-xl";
   return `
-    <div class="relative ${sizeClass} shrink-0 inline-flex items-center justify-center rounded-xl bg-[#121721] border border-gray-800 overflow-hidden shadow-sm">
-      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#182335] to-[#101723] text-[#00C805] font-mono font-black text-xs select-none">
+    <div class="relative ${sizeClass} shrink-0 inline-flex items-center justify-center ${roundedClass} bg-[#121721] border border-[#1E2638] overflow-hidden shadow-md">
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#182335] to-[#101723] text-[#00C805] font-mono font-black text-base select-none">
         ${escapeHtml(ticker.slice(0, 3) || 'RH')}
       </div>
       <img src="${escapeHtml(fullUrl)}" alt="${escapeHtml(ticker || 'Logo')}" 
@@ -2038,7 +2039,7 @@ function renderUserProfile() {
                 <!-- Left: Token Identity & Badges -->
                 <div class="flex items-center gap-3.5 cursor-pointer group" onclick="openTokenDetail('${t.id}')">
                   <div class="flex flex-col items-center shrink-0">
-                    ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl group-hover:scale-105 transition-transform", t)}
+                    ${renderTokenIconHtml(t.icon, "w-20 h-20 sm:w-[88px] sm:h-[88px] text-4xl rounded-2xl group-hover:scale-105 transition-transform", t)}
                     ${renderTokenContractUnderLogoHtml(t)}
                   </div>
                   <div>
@@ -2169,7 +2170,7 @@ function renderUserProfile() {
                 <!-- Left: Token Info & Thumbnail -->
                 <div class="flex items-center gap-3.5 cursor-pointer group" onclick="openTokenDetail('${t.id}')">
                   <div class="flex flex-col items-center shrink-0">
-                    ${renderTokenIconHtml(t.icon, "w-14 h-14 text-3xl group-hover:scale-105 transition-transform", t)}
+                    ${renderTokenIconHtml(t.icon, "w-20 h-20 sm:w-[88px] sm:h-[88px] text-4xl rounded-2xl group-hover:scale-105 transition-transform", t)}
                     ${renderTokenContractUnderLogoHtml(t)}
                   </div>
                   <div>
@@ -2259,7 +2260,7 @@ function renderKothBanner() {
         <div class="flex items-center gap-3.5">
           <div class="flex flex-col items-center shrink-0">
             <div class="relative">
-              ${renderTokenIconHtml(koth.icon, "w-14 h-14 text-4xl", koth)}
+              ${renderTokenIconHtml(koth.icon, "w-20 h-20 sm:w-24 sm:h-24 text-4xl rounded-2xl", koth)}
               <span class="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold">👑 KOTH</span>
             </div>
             ${renderTokenContractUnderLogoHtml(koth)}
@@ -2329,27 +2330,25 @@ function renderTokenGrid() {
         ${t.graduated ? `<div class="absolute top-3.5 right-3.5 text-[10px] bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 font-mono"><span>🦄</span> Graduated v4</div>` : ''}
 
         <div>
-          <div class="flex items-start gap-3">
+          <div class="flex items-start gap-3.5">
             <div class="flex flex-col items-center shrink-0">
               <div class="transition-transform group-hover:scale-105">
-                ${renderTokenIconHtml(t.icon, "w-11 h-11 text-2xl shrink-0", t)}
+                ${renderTokenIconHtml(t.icon, "w-[88px] h-[88px] sm:w-[96px] sm:h-[96px] text-4xl shrink-0 rounded-2xl shadow-md", t)}
               </div>
               ${renderTokenContractUnderLogoHtml(t)}
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-extrabold text-white text-sm truncate group-hover:text-[#00C805] transition-colors">${t.name}</span>
-                <span class="text-xs font-mono-num text-[#00C805] font-bold">$${t.ticker}</span>
+                <span class="font-extrabold text-white text-base truncate group-hover:text-[#00C805] transition-colors">${t.name}</span>
+                <span class="text-xs font-mono-num text-[#00C805] font-bold px-1.5 py-0.5 rounded bg-[#00C805]/10 border border-[#00C805]/20">$${t.ticker}</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">By <span class="font-mono text-gray-300">${t.creator}</span></div>
+              <div class="mt-2">
+                ${getTaxBadgeHtml(t)}
+              </div>
+              <p class="text-xs text-gray-400 line-clamp-2 mt-2 leading-relaxed">${t.description}</p>
             </div>
           </div>
-
-          <div class="mt-2.5">
-            ${getTaxBadgeHtml(t)}
-          </div>
-
-          <p class="text-xs text-gray-400 line-clamp-2 mt-2 leading-relaxed">${t.description}</p>
         </div>
 
         <div class="mt-4 pt-3 border-t border-gray-800/80">
@@ -2390,7 +2389,7 @@ function renderTerminal() {
   document.getElementById("terminalTokenTicker").innerText = `$${activeToken.ticker}`;
   document.getElementById("terminalTokenIcon").innerHTML = `
     <div class="flex flex-col items-center">
-      ${renderTokenIconHtml(activeToken.icon, "w-12 h-12 text-3xl", activeToken)}
+      ${renderTokenIconHtml(activeToken.icon, "w-20 h-20 sm:w-24 sm:h-24 text-4xl rounded-2xl shadow-md", activeToken)}
       ${renderTokenContractUnderLogoHtml(activeToken, true)}
     </div>
   `;
